@@ -1,7 +1,7 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
+import ApiDemo from './components/ApiDemo.vue'
 </script>
 
 <template>
-  <HelloWorld />
+  <ApiDemo />
 </template>
