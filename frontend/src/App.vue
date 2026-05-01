@@ -1,7 +1,7 @@
 <script setup>
-import ApiDemo from './components/demo/ApiDemo.vue'
+import ShiftTasksView from './components/ShiftTasks/ShiftTasksView.vue'
 </script>
 
 <template>
-  <ApiDemo />
+  <ShiftTasksView />
 </template>

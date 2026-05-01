@@ -1,11 +1,11 @@
 import { http } from '../http'
 
 export async function getHello() {
-  const response = await http.get('/hello')
-  return response.data
+  const { data} = await http.get('/hello')
+  return data
 }
 
 export async function sendContact(payload) {
-  const response = await http.post('/contact', payload)
-  return response.data
+  const { data} = await http.post('/contact', payload)
+  return data
 }
