@@ -40,50 +40,44 @@
 
 <script setup>
 import { ref } from 'vue'
-
-const API_URL = 'http://localhost:8081/api'
+import { getHello, sendContact } from '../../services/demo/demo.service'
 
 const loading = ref(false)
 const message = ref('')
 const time = ref('')
 const name = ref('')
 const response = ref('')
+const error = ref('')
 
 async function loadMessage() {
   loading.value = true
+  error.value = ''
 
   try {
-    const res = await fetch(`${API_URL}/hello`)
-    const data = await res.json()
+    const data = await getHello()
 
     message.value = data.message
     time.value = data.time
-  } catch (error) {
-    message.value = 'Ошибка запроса к API'
-    console.error(error)
+  } catch (e) {
+    error.value = 'Ошибка запроса к API'
+    console.error(e)
   } finally {
     loading.value = false
   }
 }
 
 async function sendForm() {
+  error.value = ''
+
   try {
-    const res = await fetch(`${API_URL}/contact`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: name.value,
-      }),
+    const data = await sendContact({
+      name: name.value,
     })
 
-    const data = await res.json()
-
     response.value = JSON.stringify(data, null, 2)
-  } catch (error) {
-    response.value = 'Ошибка отправки формы'
-    console.error(error)
+  } catch (e) {
+    error.value = 'Ошибка отправки формы'
+    console.error(e)
   }
 }
 </script>
