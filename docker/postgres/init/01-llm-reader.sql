@@ -1,0 +1,7 @@
+CREATE USER llm_reader WITH PASSWORD 'llm_reader_password';
+
+GRANT CONNECT ON DATABASE symfony TO llm_reader;
+GRANT USAGE ON SCHEMA public TO llm_reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO llm_reader;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO llm_reader;

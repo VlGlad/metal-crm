@@ -45,6 +45,29 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+  
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open_webui
+    ports:
+      - "3000:8080"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+    depends_on:
+      - ollama
+    volumes:
+      - open_webui_data:/app/backend/data
 
 volumes:
   postgres_data:
+  ollama_data:
+  open_webui_data:
