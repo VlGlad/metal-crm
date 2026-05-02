@@ -3,7 +3,7 @@ export function emptyTask() {
     id: null,
     date: new Date().toISOString().slice(0, 10),
     title: '',
-    workshop: 'Цех раскроя и обработки',
+    workshop: '',
     status: 'draft',
     sections: [emptySection('Пила 810')]
   }
@@ -36,7 +36,7 @@ export function normalizeTask(task) {
     id: task.id ?? null,
     date: task.date ?? new Date().toISOString().slice(0, 10),
     title: task.title ?? '',
-    workshop: task.workshop ?? 'Цех раскроя и обработки',
+    workshop: task.workshop ?? '',
     status: task.status ?? 'draft',
     sections: (task.sections?.length ? task.sections : [emptySection()]).map(normalizeSection)
   }

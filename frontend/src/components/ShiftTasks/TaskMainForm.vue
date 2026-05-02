@@ -25,8 +25,15 @@
         <input
           v-model="model.workshop"
           type="text"
-          placeholder="Цех раскроя и обработки"
+          list="workshop-options"
+          placeholder="Выберите или введите цех"
         />
+
+        <datalist id="workshop-options">
+          <option value="Цех раскроя и обработки" />
+          <option value="Сборочно-сварочный цех" />
+          <option value="Цех покраски и отгрузки" />
+        </datalist>
       </label>
 
       <label>
