@@ -293,3 +293,15 @@ code {
     border-right-color: var(--border);
   }
 }
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 100vh;
+  background: #f4f6f8;
+}
+
+.app-content {
+  min-width: 0;
+  padding: 32px;
+}
