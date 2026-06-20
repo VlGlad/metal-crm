@@ -28,6 +28,18 @@ class ShiftTask
     #[ORM\Column(length: 50)]
     private string $status = 'draft';
 
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $createdBy = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $issuedBy = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $closedBy = null;
+
     #[ORM\OneToMany(
         mappedBy: 'shiftTask',
         targetEntity: ShiftTaskSection::class,
@@ -146,6 +158,39 @@ class ShiftTask
     public function touch(): self
     {
         $this->updatedAt = new \DateTimeImmutable();
+        return $this;
+    }
+
+    public function getCreatedBy(): ?User
+    {
+        return $this->createdBy;
+    }
+
+    public function setCreatedBy(?User $createdBy): self
+    {
+        $this->createdBy = $createdBy;
+        return $this;
+    }
+
+    public function getIssuedBy(): ?User
+    {
+        return $this->issuedBy;
+    }
+
+    public function setIssuedBy(?User $issuedBy): self
+    {
+        $this->issuedBy = $issuedBy;
+        return $this;
+    }
+
+    public function getClosedBy(): ?User
+    {
+        return $this->closedBy;
+    }
+
+    public function setClosedBy(?User $closedBy): self
+    {
+        $this->closedBy = $closedBy;
         return $this;
     }
 }

@@ -59,6 +59,14 @@ class OtkInspection
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $executorUser = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $controllerUser = null;
+
     public function __construct()
     {
         $now = new \DateTimeImmutable();
@@ -229,5 +237,27 @@ class OtkInspection
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function getExecutorUser(): ?User
+    {
+        return $this->executorUser;
+    }
+
+    public function setExecutorUser(?User $executorUser): self
+    {
+        $this->executorUser = $executorUser;
+        return $this;
+    }
+
+    public function getControllerUser(): ?User
+    {
+        return $this->controllerUser;
+    }
+
+    public function setControllerUser(?User $controllerUser): self
+    {
+        $this->controllerUser = $controllerUser;
+        return $this;
     }
 }
