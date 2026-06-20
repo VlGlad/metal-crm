@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import ShiftTasksView from '../components/ShiftTasks/ShiftTasksView.vue'
 import OtkControllersView from '../components/OtkControllers/OtkControllersView.vue'
+import AnalyticsView from '../components/Analytics/AnalyticsView.vue'
 
 const routes = [
   {
@@ -21,6 +22,14 @@ const routes = [
     component: OtkControllersView,
     meta: {
       title: 'Контролеры ОТК'
+    }
+  },
+  {
+    path: '/analytics',
+    name: 'analytics',
+    component: AnalyticsView,
+    meta: {
+      title: 'Аналитика'
     }
   }
 ]

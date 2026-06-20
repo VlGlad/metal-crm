@@ -8,6 +8,10 @@
       <RouterLink to="/otk-controllers" class="nav-link">
         <span>Контролер ОТК</span>
       </RouterLink>
+
+      <RouterLink to="/analytics" class="nav-link">
+        <span>Аналитика</span>
+      </RouterLink>
     </nav>
   </aside>
 </template>
