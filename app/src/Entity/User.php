@@ -32,8 +32,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $position = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $workshop = null;
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $department = null;
 
     /**
      * @var list<string>
@@ -118,15 +118,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    public function getWorkshop(): ?string
+    public function getDepartment(): ?string
     {
-        return $this->workshop;
+        return $this->department;
     }
 
-    public function setWorkshop(?string $workshop): self
+    public function setDepartment(?string $department): self
     {
-        $workshop = $workshop !== null ? trim($workshop) : null;
-        $this->workshop = $workshop !== '' ? $workshop : null;
+        $department = $department !== null ? trim($department) : null;
+        $this->department = $department !== '' ? $department : null;
 
         return $this;
     }
