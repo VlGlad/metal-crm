@@ -1,3 +1,13 @@
+let localIdCounter = 0
+
+function makeLocalId(prefix = 'local') {
+  localIdCounter += 1
+
+  return `${prefix}-${Date.now().toString(36)}-${localIdCounter}-${Math.random()
+    .toString(36)
+    .slice(2)}`
+}
+
 export function emptyTask() {
   return {
     id: null,
@@ -12,7 +22,7 @@ export function emptyTask() {
 export function emptySection(name = '') {
   return {
     id: null,
-    localId: crypto.randomUUID(),
+    localId: makeLocalId('section'),
     name,
     items: [emptyItem()]
   }
@@ -21,7 +31,7 @@ export function emptySection(name = '') {
 export function emptyItem() {
   return {
     id: null,
-    localId: crypto.randomUUID(),
+    localId: makeLocalId('item'),
     mark: '',
     firstShiftPlan: null,
     firstShiftFact: null,
@@ -45,7 +55,7 @@ export function normalizeTask(task) {
 function normalizeSection(section) {
   return {
     id: section.id ?? null,
-    localId: section.localId ?? crypto.randomUUID(),
+    localId: section.localId ?? makeLocalId('section'),
     name: section.name ?? '',
     items: (section.items?.length ? section.items : [emptyItem()]).map(normalizeItem)
   }
@@ -54,7 +64,7 @@ function normalizeSection(section) {
 function normalizeItem(item) {
   return {
     id: item.id ?? null,
-    localId: item.localId ?? crypto.randomUUID(),
+    localId: item.localId ?? makeLocalId('item'),
     mark: item.mark ?? '',
     firstShiftPlan: item.firstShiftPlan ?? null,
     firstShiftFact: item.firstShiftFact ?? null,
