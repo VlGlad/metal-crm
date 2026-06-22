@@ -106,6 +106,8 @@ function removeItem(itemIndex) {
 
 <style scoped>
 .section-card {
+  min-width: 0;
+  max-width: 100%;
   margin-top: 16px;
   padding: 16px;
   border: 1px solid #e1e7ef;
@@ -128,6 +130,7 @@ function removeItem(itemIndex) {
 }
 
 .section-name-row input {
+  min-width: 0;
   flex: 1;
 }
 
@@ -137,7 +140,10 @@ function removeItem(itemIndex) {
 }
 
 .table-wrap {
+  display: block;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   margin-top: 16px;
   border: 1px solid #e1e7ef;

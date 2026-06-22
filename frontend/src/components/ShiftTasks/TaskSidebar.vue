@@ -48,6 +48,7 @@ function formatDate(value) {
 
 <style scoped>
 .sidebar {
+  min-width: 0;
   align-self: start;
   position: sticky;
   top: 20px;
@@ -77,6 +78,7 @@ h2 {
 
 .task-item span,
 .task-item small {
+  overflow-wrap: anywhere;
   color: #607080;
 }
 
@@ -84,7 +86,7 @@ h2 {
   color: #17202a;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1280px) {
   .sidebar {
     position: static;
   }

@@ -62,7 +62,7 @@ h1 {
   line-height: 1.15;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1280px) {
   .header {
     grid-template-columns: 1fr;
   }

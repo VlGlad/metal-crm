@@ -45,6 +45,8 @@ function removeSection(sectionIndex) {
 
 <style scoped>
 .sections {
+  min-width: 0;
+  max-width: 100%;
   margin-top: 28px;
 }
 

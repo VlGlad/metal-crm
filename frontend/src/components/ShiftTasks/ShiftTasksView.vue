@@ -150,6 +150,9 @@ body {
 }
 
 .page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 100vh;
   padding: 32px;
   background: #f4f6f8;
@@ -159,7 +162,7 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
   gap: 20px;
 }
 
@@ -168,6 +171,11 @@ body {
   border: 1px solid #e1e7ef;
   border-radius: 18px;
   box-shadow: 0 12px 30px rgba(18, 38, 63, 0.05);
+}
+
+.layout > *,
+.editor {
+  min-width: 0;
 }
 
 .editor {
@@ -271,8 +279,13 @@ button:disabled {
   color: #607080;
 }
 
+@media (max-width: 1280px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1024px) {
-  .layout,
   .form-grid {
     grid-template-columns: 1fr;
   }
