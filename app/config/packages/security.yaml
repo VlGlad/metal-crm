@@ -27,6 +27,7 @@ security:
 
     access_control:
         - { path: ^/api/token, roles: PUBLIC_ACCESS }
+        - { path: ^/api/logout, roles: ROLE_USER }
         - { path: ^/api/admin, roles: ROLE_ADMIN }
         - { path: ^/api/analytics, roles: [ROLE_MANAGER, ROLE_ADMIN] }
         - { path: ^/api/otk-inspections, roles: [ROLE_CONTROLLER_OTK] }

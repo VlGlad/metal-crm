@@ -4,7 +4,7 @@ import OtkControllersView from '../components/OtkControllers/OtkControllersView.
 import AnalyticsView from '../components/Analytics/AnalyticsView.vue'
 import LoginView from '../components/Auth/LoginView.vue'
 import UsersView from '../components/Admin/UsersView.vue'
-import { getCurrentUser, logout } from '../services/auth.js'
+import { clearSession, getCurrentUser } from '../services/auth.js'
 
 const routes = [
   {
@@ -80,7 +80,7 @@ router.beforeEach(async (to) => {
         return '/master'
       }
     } catch {
-      logout()
+      clearSession()
       return '/login'
     }
   }

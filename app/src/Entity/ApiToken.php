@@ -54,6 +54,13 @@ class ApiToken
         return $this;
     }
 
+    public function revoke(): self
+    {
+        $this->revokedAt = new \DateTimeImmutable();
+
+        return $this;
+    }
+
     public function isValid(): bool
     {
         return $this->revokedAt === null && $this->expiresAt > new \DateTimeImmutable();

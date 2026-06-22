@@ -35,8 +35,18 @@ export async function getCurrentUser() {
   return data
 }
 
-export function logout() {
+export function clearSession() {
   localStorage.removeItem('access_token')
+}
+
+export async function logout() {
+  try {
+    if (getToken()) {
+      await http.post('/logout')
+    }
+  } finally {
+    clearSession()
+  }
 }
 
 export function getToken() {

@@ -17,15 +17,22 @@
         <span>Аналитика</span>
       </RouterLink>
     </nav>
+
+    <button class="logout-button" :disabled="loggingOut" @click="handleLogout">
+      {{ loggingOut ? 'Выход...' : 'Выйти' }}
+    </button>
   </aside>
 </template>
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import { getCurrentUser } from '../services/auth.js'
+import { RouterLink, useRouter } from 'vue-router'
+import { getCurrentUser, logout } from '../services/auth.js'
+
+const router = useRouter()
 
 const isAdmin = ref(false)
+const loggingOut = ref(false)
 
 onMounted(async () => {
   try {
@@ -35,6 +42,17 @@ onMounted(async () => {
     isAdmin.value = false
   }
 })
+
+async function handleLogout() {
+  loggingOut.value = true
+
+  try {
+    await logout()
+  } finally {
+    loggingOut.value = false
+    await router.replace({ name: 'login' })
+  }
+}
 </script>
 
 <style scoped>
@@ -46,9 +64,13 @@ onMounted(async () => {
   background: #ffffff;
   color: #17202a;
   border-right: 1px solid #e1e7ef;
+  display: flex;
+  flex-direction: column;
 }
 
 .nav {
+  flex: 1;
+  align-content: start;
   display: grid;
   gap: 8px;
 }
@@ -72,6 +94,26 @@ onMounted(async () => {
 .nav-link.router-link-active {
   background: #eef4ff;
   color: #1f63b6;
+}
+
+.logout-button {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid #f0caca;
+  border-radius: 10px;
+  background: #fff5f5;
+  color: #b42318;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.logout-button:hover {
+  background: #ffe9e9;
+}
+
+.logout-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .nav-icon {
