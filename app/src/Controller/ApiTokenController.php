@@ -31,7 +31,7 @@ final class ApiTokenController extends AbstractController
 
         $user = $userRepository->findOneBy(['email' => $email]);
 
-        if (!$user || !$passwordHasher->isPasswordValid($user, $password)) {
+        if (!$user || !$user->isActive() || !$passwordHasher->isPasswordValid($user, $password)) {
             return $this->json(['error' => 'Invalid credentials.'], 401);
         }
 

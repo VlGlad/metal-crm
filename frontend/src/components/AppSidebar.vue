@@ -9,6 +9,10 @@
         <span>Контролер ОТК</span>
       </RouterLink>
 
+      <RouterLink v-if="isAdmin" to="/users" class="nav-link">
+        <span>Пользователи</span>
+      </RouterLink>
+
       <RouterLink to="/analytics" class="nav-link">
         <span>Аналитика</span>
       </RouterLink>
@@ -17,7 +21,20 @@
 </template>
 
 <script setup>
+import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { getCurrentUser } from '../services/auth.js'
+
+const isAdmin = ref(false)
+
+onMounted(async () => {
+  try {
+    const user = await getCurrentUser()
+    isAdmin.value = user?.roles?.includes('ROLE_ADMIN') ?? false
+  } catch {
+    isAdmin.value = false
+  }
+})
 </script>
 
 <style scoped>

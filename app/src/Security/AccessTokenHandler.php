@@ -18,7 +18,7 @@ final class AccessTokenHandler implements AccessTokenHandlerInterface
     {
         $apiToken = $this->apiTokenRepository->findValidToken($accessToken);
 
-        if (!$apiToken || !$apiToken->isValid()) {
+        if (!$apiToken || !$apiToken->isValid() || !$apiToken->getUser()->isActive()) {
             throw new BadCredentialsException('Invalid API token.');
         }
 

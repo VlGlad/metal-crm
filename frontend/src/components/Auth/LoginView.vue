@@ -37,7 +37,7 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { login } from '../../services/auth.js'
+import { getCurrentUser, login } from '../../services/auth.js'
 import BaseAlert from '../ShiftTasks/BaseAlert.vue'
 
 const router = useRouter()
@@ -71,7 +71,8 @@ async function submit() {
 
     try {
         await login(form.email, form.password)
-        await router.push({ name: 'master' })
+        const user = await getCurrentUser()
+        await router.push({ name: user?.roles?.includes('ROLE_ADMIN') ? 'users' : 'master' })
     } catch (e) {
         error.value = e.message
     } finally {

@@ -21,6 +21,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public const ROLE_MANAGER = 'ROLE_MANAGER';
     public const ROLE_ADMIN = 'ROLE_ADMIN';
 
+    public const ASSIGNABLE_ROLES = [
+        self::ROLE_MASTER,
+        self::ROLE_OPERATOR,
+        self::ROLE_CONTROLLER_OTK,
+        self::ROLE_CRO,
+        self::ROLE_SSC,
+        self::ROLE_CPO,
+        self::ROLE_MANAGER,
+        self::ROLE_ADMIN,
+    ];
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -150,20 +161,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      */
     public function setRoles(array $roles): self
     {
-        $allowedRoles = [
-            self::ROLE_MASTER,
-            self::ROLE_OPERATOR,
-            self::ROLE_CONTROLLER_OTK,
-            self::ROLE_CRO,
-            self::ROLE_SSC,
-            self::ROLE_CPO,
-            self::ROLE_MANAGER,
-            self::ROLE_ADMIN,
-        ];
-
         $this->roles = array_values(array_unique(array_filter(
             $roles,
-            fn (string $role) => in_array($role, $allowedRoles, true)
+            fn (string $role) => in_array($role, self::ASSIGNABLE_ROLES, true)
         )));
 
         return $this;

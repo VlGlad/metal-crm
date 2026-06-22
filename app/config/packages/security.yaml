@@ -29,5 +29,5 @@ security:
         - { path: ^/api/token, roles: PUBLIC_ACCESS }
         - { path: ^/api/admin, roles: ROLE_ADMIN }
         - { path: ^/api/analytics, roles: [ROLE_MANAGER, ROLE_ADMIN] }
-        - { path: ^/api/otk-inspections, roles: [ROLE_OTK] }
+        - { path: ^/api/otk-inspections, roles: [ROLE_CONTROLLER_OTK] }
         - { path: ^/api/shift-tasks, roles: [ROLE_CRO, ROLE_SSC, ROLE_CPO] }

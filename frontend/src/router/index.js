@@ -3,6 +3,8 @@ import ShiftTasksView from '../components/ShiftTasks/ShiftTasksView.vue'
 import OtkControllersView from '../components/OtkControllers/OtkControllersView.vue'
 import AnalyticsView from '../components/Analytics/AnalyticsView.vue'
 import LoginView from '../components/Auth/LoginView.vue'
+import UsersView from '../components/Admin/UsersView.vue'
+import { getCurrentUser, logout } from '../services/auth.js'
 
 const routes = [
   {
@@ -33,6 +35,16 @@ const routes = [
     }
   },
   {
+    path: '/users',
+    name: 'users',
+    component: UsersView,
+    meta: {
+      title: 'Пользователи',
+      requiresAuth: true,
+      roles: ['ROLE_ADMIN']
+    }
+  },
+  {
     path: '/analytics',
     name: 'analytics',
     component: AnalyticsView,
@@ -48,7 +60,7 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const isAuthenticated = Boolean(localStorage.getItem('access_token'))
 
   if (to.meta.requiresAuth && !isAuthenticated) {
@@ -57,6 +69,20 @@ router.beforeEach((to) => {
 
   if (to.path === '/login' && isAuthenticated) {
     return '/master'
+  }
+
+  if (to.meta.roles?.length) {
+    try {
+      const user = await getCurrentUser()
+      const hasRequiredRole = to.meta.roles.some(role => user?.roles?.includes(role))
+
+      if (!hasRequiredRole) {
+        return '/master'
+      }
+    } catch {
+      logout()
+      return '/login'
+    }
   }
 })
 
