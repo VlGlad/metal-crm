@@ -30,5 +30,5 @@ security:
         - { path: ^/api/logout, roles: ROLE_USER }
         - { path: ^/api/admin, roles: ROLE_ADMIN }
         - { path: ^/api/analytics, roles: [ROLE_MANAGER, ROLE_ADMIN] }
-        - { path: ^/api/otk-inspections, roles: [ROLE_CONTROLLER_OTK] }
-        - { path: ^/api/shift-tasks, roles: [ROLE_CRO, ROLE_SSC, ROLE_CPO] }
+        - { path: ^/api/otk-inspections, roles: [ROLE_CONTROLLER_OTK, ROLE_ADMIN] }
+        - { path: ^/api/shift-tasks, roles: [ROLE_MASTER, ROLE_CRO, ROLE_SSC, ROLE_CPO, ROLE_ADMIN] }

@@ -22,7 +22,8 @@ const routes = [
     component: ShiftTasksView,
     meta: {
       title: 'Мастер',
-      requiresAuth: true
+      requiresAuth: true,
+      roles: ['ROLE_MASTER', 'ROLE_CRO', 'ROLE_SSC', 'ROLE_CPO', 'ROLE_ADMIN']
     }
   },
   {
@@ -31,7 +32,8 @@ const routes = [
     component: OtkControllersView,
     meta: {
       title: 'Контролеры ОТК',
-      requiresAuth: true
+      requiresAuth: true,
+      roles: ['ROLE_CONTROLLER_OTK', 'ROLE_ADMIN']
     }
   },
   {
@@ -60,6 +62,16 @@ const router = createRouter({
   routes
 })
 
+function getDefaultRoute(roles = []) {
+  if (roles.includes('ROLE_ADMIN')) return '/users'
+  if (roles.includes('ROLE_CONTROLLER_OTK')) return '/otk-controllers'
+  if (['ROLE_MASTER', 'ROLE_CRO', 'ROLE_SSC', 'ROLE_CPO'].some(role => roles.includes(role))) {
+    return '/master'
+  }
+
+  return '/analytics'
+}
+
 router.beforeEach(async (to) => {
   const isAuthenticated = Boolean(localStorage.getItem('access_token'))
 
@@ -77,7 +89,7 @@ router.beforeEach(async (to) => {
       const hasRequiredRole = to.meta.roles.some(role => user?.roles?.includes(role))
 
       if (!hasRequiredRole) {
-        return '/master'
+        return getDefaultRoute(user?.roles)
       }
     } catch {
       clearSession()

@@ -1,20 +1,16 @@
 <template>
   <aside class="app-sidebar">
     <nav class="nav">
-      <RouterLink to="/master" class="nav-link">
+      <RouterLink v-if="canSeeMaster" to="/master" class="nav-link">
         <span>Мастер</span>
       </RouterLink>
 
-      <RouterLink to="/otk-controllers" class="nav-link">
+      <RouterLink v-if="canSeeOtk" to="/otk-controllers" class="nav-link">
         <span>Контролер ОТК</span>
       </RouterLink>
 
       <RouterLink v-if="isAdmin" to="/users" class="nav-link">
         <span>Пользователи</span>
-      </RouterLink>
-
-      <RouterLink to="/analytics" class="nav-link">
-        <span>Аналитика</span>
       </RouterLink>
     </nav>
 
@@ -25,21 +21,30 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { getCurrentUser, logout } from '../services/auth.js'
 
 const router = useRouter()
 
-const isAdmin = ref(false)
+const roles = ref([])
 const loggingOut = ref(false)
+
+const isAdmin = computed(() => roles.value.includes('ROLE_ADMIN'))
+const canSeeMaster = computed(() => {
+  return isAdmin.value || ['ROLE_MASTER', 'ROLE_CRO', 'ROLE_SSC', 'ROLE_CPO']
+    .some(role => roles.value.includes(role))
+})
+const canSeeOtk = computed(() => {
+  return isAdmin.value || roles.value.includes('ROLE_CONTROLLER_OTK')
+})
 
 onMounted(async () => {
   try {
     const user = await getCurrentUser()
-    isAdmin.value = user?.roles?.includes('ROLE_ADMIN') ?? false
+    roles.value = Array.isArray(user?.roles) ? user.roles : []
   } catch {
-    isAdmin.value = false
+    roles.value = []
   }
 })
 

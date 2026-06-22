@@ -72,7 +72,13 @@ async function submit() {
     try {
         await login(form.email, form.password)
         const user = await getCurrentUser()
-        await router.push({ name: user?.roles?.includes('ROLE_ADMIN') ? 'users' : 'master' })
+        const roles = user?.roles || []
+        const routeName = roles.includes('ROLE_ADMIN')
+          ? 'users'
+          : roles.includes('ROLE_CONTROLLER_OTK')
+            ? 'otk-controllers'
+            : 'master'
+        await router.push({ name: routeName })
     } catch (e) {
         error.value = e.message
     } finally {
