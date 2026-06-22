@@ -38,6 +38,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getCurrentUser, login } from '../../services/auth.js'
+import { canAccessOrders } from '../../constants/orderRoles.js'
 import BaseAlert from '../ShiftTasks/BaseAlert.vue'
 
 const router = useRouter()
@@ -77,7 +78,11 @@ async function submit() {
           ? 'users'
           : roles.includes('ROLE_CONTROLLER_OTK')
             ? 'otk-controllers'
-            : 'master'
+            : ['ROLE_MASTER', 'ROLE_CRO', 'ROLE_SSC', 'ROLE_CPO'].some(role => roles.includes(role))
+              ? 'master'
+              : canAccessOrders(roles)
+                ? 'orders'
+                : 'master'
         await router.push({ name: routeName })
     } catch (e) {
         error.value = e.message

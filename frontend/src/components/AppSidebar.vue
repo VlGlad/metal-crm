@@ -1,6 +1,10 @@
 <template>
   <aside class="app-sidebar">
     <nav class="nav">
+      <RouterLink v-if="canSeeOrders" to="/orders" class="nav-link">
+        <span>Заказы</span>
+      </RouterLink>
+
       <RouterLink v-if="canSeeMaster" to="/master" class="nav-link">
         <span>Мастер</span>
       </RouterLink>
@@ -24,12 +28,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { getCurrentUser, logout } from '../services/auth.js'
+import { canAccessOrders } from '../constants/orderRoles.js'
 
 const router = useRouter()
 
 const roles = ref([])
 const loggingOut = ref(false)
 
+const canSeeOrders = computed(() => canAccessOrders(roles.value))
 const isAdmin = computed(() => roles.value.includes('ROLE_ADMIN'))
 const canSeeMaster = computed(() => {
   return isAdmin.value || ['ROLE_MASTER', 'ROLE_CRO', 'ROLE_SSC', 'ROLE_CPO']

@@ -5,6 +5,8 @@ namespace App\Enum;
 enum DocumentType: string
 {
     case KM_PROJECT = 'km_project';
+    case ORDER_CALCULATION = 'order_calculation';
+    case SPECIFICATION_AND_CONTRACTS = 'specification_and_contracts';
     case KMD = 'kmd';
     case PRODUCTION_PLAN = 'production_plan';
     case MATERIAL_REQUEST = 'material_request';

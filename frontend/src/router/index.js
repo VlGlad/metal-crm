@@ -4,6 +4,8 @@ import OtkControllersView from '../components/OtkControllers/OtkControllersView.
 import AnalyticsView from '../components/Analytics/AnalyticsView.vue'
 import LoginView from '../components/Auth/LoginView.vue'
 import UsersView from '../components/Admin/UsersView.vue'
+import OrdersView from '../components/Orders/OrdersView.vue'
+import { canAccessOrders, ORDER_PARTICIPANT_ROLES } from '../constants/orderRoles.js'
 import { clearSession, getCurrentUser } from '../services/auth.js'
 
 const routes = [
@@ -15,6 +17,16 @@ const routes = [
     path: '/login',
     name: 'login',
     component: LoginView
+  },
+  {
+    path: '/orders',
+    name: 'orders',
+    component: OrdersView,
+    meta: {
+      title: 'Заказы',
+      requiresAuth: true,
+      roles: ORDER_PARTICIPANT_ROLES
+    }
   },
   {
     path: '/master',
@@ -68,6 +80,7 @@ function getDefaultRoute(roles = []) {
   if (['ROLE_MASTER', 'ROLE_CRO', 'ROLE_SSC', 'ROLE_CPO'].some(role => roles.includes(role))) {
     return '/master'
   }
+  if (canAccessOrders(roles)) return '/orders'
 
   return '/analytics'
 }
