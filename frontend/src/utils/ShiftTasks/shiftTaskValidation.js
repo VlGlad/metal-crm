@@ -4,7 +4,7 @@ export function validateTask(task) {
   }
 
   if (!task.workshop.trim()) {
-    return 'Укажите цех.'
+    return 'Для вашей роли не настроен цех.'
   }
 
   for (const section of task.sections) {

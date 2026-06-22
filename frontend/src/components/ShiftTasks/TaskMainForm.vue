@@ -23,17 +23,11 @@
       <label>
         Цех
         <input
-          v-model="model.workshop"
+          :value="model.workshop"
           type="text"
-          list="workshop-options"
-          placeholder="Выберите или введите цех"
+          placeholder="Определяется по роли пользователя"
+          readonly
         />
-
-        <datalist id="workshop-options">
-          <option value="Цех раскроя и обработки" />
-          <option value="Сборочно-сварочный цех" />
-          <option value="Цех покраски и отгрузки" />
-        </datalist>
       </label>
 
       <label>
@@ -69,5 +63,11 @@ h2 {
   color: #526170;
   font-size: 12px;
   font-weight: 700;
+}
+
+input[readonly] {
+  background: #f1f5f9;
+  color: #526170;
+  cursor: not-allowed;
 }
 </style>

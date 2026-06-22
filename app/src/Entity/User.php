@@ -15,6 +15,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public const ROLE_MASTER = 'ROLE_MASTER';
     public const ROLE_OPERATOR = 'ROLE_OPERATOR';
     public const ROLE_CONTROLLER_OTK = 'ROLE_CONTROLLER_OTK';
+    public const ROLE_CRO = 'ROLE_CRO';
+    public const ROLE_SSC = 'ROLE_SSC';
+    public const ROLE_CPO = 'ROLE_CPO';
     public const ROLE_MANAGER = 'ROLE_MANAGER';
     public const ROLE_ADMIN = 'ROLE_ADMIN';
 
@@ -151,6 +154,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             self::ROLE_MASTER,
             self::ROLE_OPERATOR,
             self::ROLE_CONTROLLER_OTK,
+            self::ROLE_CRO,
+            self::ROLE_SSC,
+            self::ROLE_CPO,
             self::ROLE_MANAGER,
             self::ROLE_ADMIN,
         ];

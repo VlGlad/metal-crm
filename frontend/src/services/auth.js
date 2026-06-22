@@ -30,6 +30,11 @@ export async function login(email, password) {
   }
 }
 
+export async function getCurrentUser() {
+  const { data } = await http.get('/me')
+  return data
+}
+
 export function logout() {
   localStorage.removeItem('access_token')
 }

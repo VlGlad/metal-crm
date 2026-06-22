@@ -37,12 +37,14 @@ import SectionsEditor from './SectionsEditor.vue'
 import { createShiftTask, getShiftTasks, updateShiftTask } from '../../services/ShiftTasks/shift-tasks.service.js'
 import { emptyTask, normalizeTask, payloadFromTask } from '../../utils/ShiftTasks/shiftTaskFactory.js'
 import { validateTask } from '../../utils/ShiftTasks/shiftTaskValidation.js'
+import { getCurrentUser } from '../../services/auth.js'
 
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
 const success = ref('')
 const tasks = ref([])
+const assignedWorkshop = ref('')
 
 const form = reactive(emptyTask())
 
@@ -60,6 +62,7 @@ function showError(message) {
 
 function replaceForm(task) {
   Object.assign(form, normalizeTask(task))
+  form.workshop = assignedWorkshop.value
 }
 
 function createNewTask() {
@@ -83,6 +86,16 @@ async function loadTasks() {
     setMessage('error', getErrorMessage(e, 'Не удалось загрузить список заданий.'))
   } finally {
     loading.value = false
+  }
+}
+
+async function loadCurrentUser() {
+  try {
+    const user = await getCurrentUser()
+    assignedWorkshop.value = user?.workshop || ''
+    form.workshop = assignedWorkshop.value
+  } catch (e) {
+    setMessage('error', getErrorMessage(e, 'Не удалось определить цех пользователя.'))
   }
 }
 
@@ -117,7 +130,14 @@ function getErrorMessage(error, fallback) {
   return error?.response?.data?.message || error?.message || fallback
 }
 
-onMounted(loadTasks)
+onMounted(async () => {
+  await loadCurrentUser()
+  await loadTasks()
+
+  if (!assignedWorkshop.value) {
+    setMessage('error', 'Для вашей роли не настроен цех.')
+  }
+})
 </script>
 
 <style>

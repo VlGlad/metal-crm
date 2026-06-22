@@ -6,6 +6,7 @@ use App\Entity\ShiftTask;
 use App\Entity\ShiftTaskItem;
 use App\Entity\ShiftTaskSection;
 use App\Repository\ShiftTaskRepository;
+use App\Security\WorkshopByRoleResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -18,6 +19,7 @@ class ShiftTaskController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly ShiftTaskRepository $shiftTaskRepository,
+        private readonly WorkshopByRoleResolver $workshopResolver,
     ) {
     }
 
@@ -48,13 +50,18 @@ class ShiftTaskController extends AbstractController
     public function create(Request $request): JsonResponse
     {
         $data = $this->decodeJson($request);
+        $workshop = $this->workshopResolver->resolve($this->getUser());
+
+        if (!$workshop) {
+            return $this->json(['message' => 'Для вашей роли не настроен цех.'], 403);
+        }
 
         if ($error = $this->validatePayload($data)) {
             return $this->json(['message' => $error], 422);
         }
 
         $task = new ShiftTask();
-        $this->fillTaskFromPayload($task, $data);
+        $this->fillTaskFromPayload($task, $data, $workshop);
 
         $this->entityManager->persist($task);
         $this->entityManager->flush();
@@ -72,12 +79,17 @@ class ShiftTaskController extends AbstractController
         }
 
         $data = $this->decodeJson($request);
+        $workshop = $this->workshopResolver->resolve($this->getUser());
+
+        if (!$workshop) {
+            return $this->json(['message' => 'Для вашей роли не настроен цех.'], 403);
+        }
 
         if ($error = $this->validatePayload($data)) {
             return $this->json(['message' => $error], 422);
         }
 
-        $this->fillTaskFromPayload($task, $data);
+        $this->fillTaskFromPayload($task, $data, $workshop);
         $task->touch();
 
         $this->entityManager->flush();
@@ -100,12 +112,12 @@ class ShiftTaskController extends AbstractController
         return $this->json(['message' => 'Задание удалено.']);
     }
 
-    private function fillTaskFromPayload(ShiftTask $task, array $data): void
+    private function fillTaskFromPayload(ShiftTask $task, array $data, string $workshop): void
     {
         $task
             ->setDate(new \DateTimeImmutable($data['date']))
             ->setTitle(trim((string) ($data['title'] ?? '')))
-            ->setWorkshop(trim((string) ($data['workshop'] ?? '')))
+            ->setWorkshop($workshop)
             ->setStatus((string) ($data['status'] ?? 'draft'));
 
         $task->clearSections();
@@ -144,10 +156,6 @@ class ShiftTaskController extends AbstractController
             new \DateTimeImmutable($data['date']);
         } catch (\Throwable) {
             return 'Некорректная дата задания.';
-        }
-
-        if (empty(trim((string) ($data['workshop'] ?? '')))) {
-            return 'Укажите цех.';
         }
 
         if (empty($data['sections']) || !is_array($data['sections'])) {

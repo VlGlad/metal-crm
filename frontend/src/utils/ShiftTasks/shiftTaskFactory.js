@@ -78,7 +78,6 @@ export function payloadFromTask(task) {
   return {
     date: task.date,
     title: task.title,
-    workshop: task.workshop,
     status: task.status,
     sections: task.sections.map(section => ({
       id: section.id,
