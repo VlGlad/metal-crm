@@ -2,7 +2,6 @@
   <main class="orders-page">
     <header class="orders-header">
       <div>
-        <p class="eyebrow">Первый этап</p>
         <h1>Заказы</h1>
         <p class="subtitle">Документы для анализа и запуска заказа в производство.</p>
       </div>
@@ -476,15 +475,6 @@ onMounted(loadOrders)
 
 .orders-header {
   margin-bottom: 24px;
-}
-
-.eyebrow {
-  margin: 0 0 6px;
-  color: #2f80ed;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 h1,
