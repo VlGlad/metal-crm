@@ -8,6 +8,7 @@
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
     order_upload_directory: '%kernel.project_dir%/var/uploads/orders'
+    monthly_plan_upload_directory: '%kernel.project_dir%/var/uploads/monthly-plans'
 
 services:
     # default configuration for services in *this* file
@@ -23,6 +24,10 @@ services:
     App\Service\ProductionOrderFileStorage:
         arguments:
             $uploadDirectory: '%order_upload_directory%'
+
+    App\Service\MonthlyProductionPlanFileStorage:
+        arguments:
+            $uploadDirectory: '%monthly_plan_upload_directory%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

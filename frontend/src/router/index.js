@@ -5,6 +5,8 @@ import AnalyticsView from '../components/Analytics/AnalyticsView.vue'
 import LoginView from '../components/Auth/LoginView.vue'
 import UsersView from '../components/Admin/UsersView.vue'
 import OrdersView from '../components/Orders/OrdersView.vue'
+import MonthlyPlansView from '../components/MonthlyPlans/MonthlyPlansView.vue'
+import { canAccessMonthlyPlans, MONTHLY_PLAN_PARTICIPANT_ROLES } from '../constants/monthlyPlanRoles.js'
 import { canAccessOrders, ORDER_PARTICIPANT_ROLES } from '../constants/orderRoles.js'
 import { clearSession, getCurrentUser } from '../services/auth.js'
 
@@ -17,6 +19,16 @@ const routes = [
     path: '/login',
     name: 'login',
     component: LoginView
+  },
+  {
+    path: '/monthly-plans',
+    name: 'monthly-plans',
+    component: MonthlyPlansView,
+    meta: {
+      title: 'Планирование',
+      requiresAuth: true,
+      roles: MONTHLY_PLAN_PARTICIPANT_ROLES
+    }
   },
   {
     path: '/orders',
@@ -81,6 +93,7 @@ function getDefaultRoute(roles = []) {
     return '/master'
   }
   if (canAccessOrders(roles)) return '/orders'
+  if (canAccessMonthlyPlans(roles)) return '/monthly-plans'
 
   return '/analytics'
 }

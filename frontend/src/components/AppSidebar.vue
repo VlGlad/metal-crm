@@ -1,6 +1,10 @@
 <template>
   <aside class="app-sidebar">
     <nav class="nav">
+      <RouterLink v-if="canSeeMonthlyPlans" to="/monthly-plans" class="nav-link">
+        <span>Планирование</span>
+      </RouterLink>
+
       <RouterLink v-if="canSeeOrders" to="/orders" class="nav-link">
         <span>Заказы</span>
       </RouterLink>
@@ -29,12 +33,14 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { getCurrentUser, logout } from '../services/auth.js'
 import { canAccessOrders } from '../constants/orderRoles.js'
+import { canAccessMonthlyPlans } from '../constants/monthlyPlanRoles.js'
 
 const router = useRouter()
 
 const roles = ref([])
 const loggingOut = ref(false)
 
+const canSeeMonthlyPlans = computed(() => canAccessMonthlyPlans(roles.value))
 const canSeeOrders = computed(() => canAccessOrders(roles.value))
 const isAdmin = computed(() => roles.value.includes('ROLE_ADMIN'))
 const canSeeMaster = computed(() => {

@@ -39,6 +39,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getCurrentUser, login } from '../../services/auth.js'
 import { canAccessOrders } from '../../constants/orderRoles.js'
+import { canAccessMonthlyPlans } from '../../constants/monthlyPlanRoles.js'
 import BaseAlert from '../ShiftTasks/BaseAlert.vue'
 
 const router = useRouter()
@@ -82,7 +83,9 @@ async function submit() {
               ? 'master'
               : canAccessOrders(roles)
                 ? 'orders'
-                : 'master'
+                : canAccessMonthlyPlans(roles)
+                  ? 'monthly-plans'
+                  : 'master'
         await router.push({ name: routeName })
     } catch (e) {
         error.value = e.message

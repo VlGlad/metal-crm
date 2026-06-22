@@ -9,6 +9,7 @@ enum DocumentType: string
     case SPECIFICATION_AND_CONTRACTS = 'specification_and_contracts';
     case KMD = 'kmd';
     case PRODUCTION_PLAN = 'production_plan';
+    case PRODUCTION_SCHEDULE = 'production_schedule';
     case MATERIAL_REQUEST = 'material_request';
     case INCOMING_CONTROL_ACT = 'incoming_control_act';
     case NONCONFORMITY_ACT = 'nonconformity_act';
