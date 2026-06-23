@@ -54,7 +54,7 @@
         <form class="request-form" @submit.prevent="saveRequest">
           <label class="month-field">
             Месяц
-            <input v-model="form.month" type="month" :disabled="!canEditForm" />
+            <MonthPicker v-model="form.month" :disabled="!canEditForm" />
           </label>
 
           <fieldset>
@@ -143,6 +143,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import BaseAlert from '../ShiftTasks/BaseAlert.vue'
+import MonthPicker from './MonthPicker.vue'
 import {
   createProcurementRequest,
   deleteProcurementRequestFile,
