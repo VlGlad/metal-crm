@@ -9,6 +9,8 @@
 parameters:
     order_upload_directory: '%kernel.project_dir%/var/uploads/orders'
     monthly_plan_upload_directory: '%kernel.project_dir%/var/uploads/monthly-plans'
+    working_documentation_upload_directory: '%kernel.project_dir%/var/uploads/working-documents'
+    procurement_request_upload_directory: '%kernel.project_dir%/var/uploads/procurement-requests'
 
 services:
     # default configuration for services in *this* file
@@ -28,6 +30,14 @@ services:
     App\Service\MonthlyProductionPlanFileStorage:
         arguments:
             $uploadDirectory: '%monthly_plan_upload_directory%'
+
+    App\Service\WorkingDocumentationFileStorage:
+        arguments:
+            $uploadDirectory: '%working_documentation_upload_directory%'
+
+    App\Service\MaterialProcurementRequestFileStorage:
+        arguments:
+            $uploadDirectory: '%procurement_request_upload_directory%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

@@ -1,12 +1,20 @@
 <template>
   <aside class="app-sidebar">
     <nav class="nav">
+      <RouterLink v-if="canSeeOrders" to="/orders" class="nav-link">
+        <span>Заказы</span>
+      </RouterLink>
+
       <RouterLink v-if="canSeeMonthlyPlans" to="/monthly-plans" class="nav-link">
         <span>Планирование</span>
       </RouterLink>
 
-      <RouterLink v-if="canSeeOrders" to="/orders" class="nav-link">
-        <span>Заказы</span>
+      <RouterLink v-if="canSeeWorkingDocuments" to="/working-documents" class="nav-link">
+        <span>Рабочие документы</span>
+      </RouterLink>
+
+      <RouterLink v-if="canSeeProcurementRequests" to="/procurement-requests" class="nav-link">
+        <span>Заявки на ТМЦ</span>
       </RouterLink>
 
       <RouterLink v-if="canSeeMaster" to="/master" class="nav-link">
@@ -34,12 +42,16 @@ import { RouterLink, useRouter } from 'vue-router'
 import { getCurrentUser, logout } from '../services/auth.js'
 import { canAccessOrders } from '../constants/orderRoles.js'
 import { canAccessMonthlyPlans } from '../constants/monthlyPlanRoles.js'
+import { canAccessWorkingDocuments } from '../constants/workingDocumentRoles.js'
+import { canAccessProcurementRequests } from '../constants/procurementRequestRoles.js'
 
 const router = useRouter()
 
 const roles = ref([])
 const loggingOut = ref(false)
 
+const canSeeProcurementRequests = computed(() => canAccessProcurementRequests(roles.value))
+const canSeeWorkingDocuments = computed(() => canAccessWorkingDocuments(roles.value))
 const canSeeMonthlyPlans = computed(() => canAccessMonthlyPlans(roles.value))
 const canSeeOrders = computed(() => canAccessOrders(roles.value))
 const isAdmin = computed(() => roles.value.includes('ROLE_ADMIN'))

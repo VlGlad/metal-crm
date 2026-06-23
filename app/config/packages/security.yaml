@@ -28,6 +28,8 @@ security:
     access_control:
         - { path: ^/api/token, roles: PUBLIC_ACCESS }
         - { path: ^/api/logout, roles: ROLE_USER }
+        - { path: ^/api/procurement-requests, roles: [ROLE_PO_HEAD, ROLE_DEPARTMENT_HEAD, ROLE_ADMIN] }
+        - { path: ^/api/working-documents, roles: [ROLE_LEAD_DESIGN_ENGINEER, ROLE_DESIGN_ENGINEER, ROLE_ADMIN] }
         - { path: ^/api/monthly-plans, roles: [ROLE_PTO_HEAD, ROLE_PTO_DEPUTY_HEAD, ROLE_PTO_ENGINEER, ROLE_PO_HEAD, ROLE_PRODUCTION_HEAD, ROLE_OMTS_HEAD, ROLE_ADMIN] }
         - { path: ^/api/orders, roles: [ROLE_PTO_HEAD, ROLE_PTO_DEPUTY_HEAD, ROLE_PTO_ENGINEER, ROLE_CHIEF_WELDER, ROLE_CHIEF_TECHNOLOGIST, ROLE_PO_HEAD, ROLE_GENERAL_DIRECTOR, ROLE_ECONOMIST, ROLE_SALES_HEAD, ROLE_SALES_MANAGER, ROLE_RESPONSIBLE_EXECUTOR, ROLE_LEAD_DESIGN_ENGINEER, ROLE_ADMIN] }
         - { path: ^/api/admin, roles: ROLE_ADMIN }

@@ -6,6 +6,10 @@ import LoginView from '../components/Auth/LoginView.vue'
 import UsersView from '../components/Admin/UsersView.vue'
 import OrdersView from '../components/Orders/OrdersView.vue'
 import MonthlyPlansView from '../components/MonthlyPlans/MonthlyPlansView.vue'
+import WorkingDocumentsView from '../components/WorkingDocuments/WorkingDocumentsView.vue'
+import ProcurementRequestsView from '../components/ProcurementRequests/ProcurementRequestsView.vue'
+import { canAccessProcurementRequests, PROCUREMENT_REQUEST_PARTICIPANT_ROLES } from '../constants/procurementRequestRoles.js'
+import { canAccessWorkingDocuments, WORKING_DOCUMENT_PARTICIPANT_ROLES } from '../constants/workingDocumentRoles.js'
 import { canAccessMonthlyPlans, MONTHLY_PLAN_PARTICIPANT_ROLES } from '../constants/monthlyPlanRoles.js'
 import { canAccessOrders, ORDER_PARTICIPANT_ROLES } from '../constants/orderRoles.js'
 import { clearSession, getCurrentUser } from '../services/auth.js'
@@ -19,6 +23,26 @@ const routes = [
     path: '/login',
     name: 'login',
     component: LoginView
+  },
+  {
+    path: '/procurement-requests',
+    name: 'procurement-requests',
+    component: ProcurementRequestsView,
+    meta: {
+      title: 'Заявки на ТМЦ',
+      requiresAuth: true,
+      roles: PROCUREMENT_REQUEST_PARTICIPANT_ROLES
+    }
+  },
+  {
+    path: '/working-documents',
+    name: 'working-documents',
+    component: WorkingDocumentsView,
+    meta: {
+      title: 'Рабочие документы',
+      requiresAuth: true,
+      roles: WORKING_DOCUMENT_PARTICIPANT_ROLES
+    }
   },
   {
     path: '/monthly-plans',
@@ -92,8 +116,10 @@ function getDefaultRoute(roles = []) {
   if (['ROLE_MASTER', 'ROLE_CRO', 'ROLE_SSC', 'ROLE_CPO'].some(role => roles.includes(role))) {
     return '/master'
   }
+  if (canAccessWorkingDocuments(roles)) return '/working-documents'
   if (canAccessOrders(roles)) return '/orders'
   if (canAccessMonthlyPlans(roles)) return '/monthly-plans'
+  if (canAccessProcurementRequests(roles)) return '/procurement-requests'
 
   return '/analytics'
 }

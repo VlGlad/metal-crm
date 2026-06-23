@@ -40,6 +40,8 @@ import { useRouter } from 'vue-router'
 import { getCurrentUser, login } from '../../services/auth.js'
 import { canAccessOrders } from '../../constants/orderRoles.js'
 import { canAccessMonthlyPlans } from '../../constants/monthlyPlanRoles.js'
+import { canAccessWorkingDocuments } from '../../constants/workingDocumentRoles.js'
+import { canAccessProcurementRequests } from '../../constants/procurementRequestRoles.js'
 import BaseAlert from '../ShiftTasks/BaseAlert.vue'
 
 const router = useRouter()
@@ -81,11 +83,15 @@ async function submit() {
             ? 'otk-controllers'
             : ['ROLE_MASTER', 'ROLE_CRO', 'ROLE_SSC', 'ROLE_CPO'].some(role => roles.includes(role))
               ? 'master'
-              : canAccessOrders(roles)
-                ? 'orders'
+              : canAccessWorkingDocuments(roles)
+                ? 'working-documents'
+                : canAccessOrders(roles)
+                  ? 'orders'
                 : canAccessMonthlyPlans(roles)
                   ? 'monthly-plans'
-                  : 'master'
+                  : canAccessProcurementRequests(roles)
+                    ? 'procurement-requests'
+                    : 'master'
         await router.push({ name: routeName })
     } catch (e) {
         error.value = e.message
