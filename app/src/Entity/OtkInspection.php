@@ -23,6 +23,10 @@ class OtkInspection
     #[ORM\Column(length: 255)]
     private string $project = '';
 
+    #[ORM\ManyToOne(targetEntity: ShiftTaskItem::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?ShiftTaskItem $shiftTaskItem = null;
+
     #[ORM\Column]
     private int $presentedQuantity = 0;
 
@@ -116,6 +120,17 @@ class OtkInspection
     public function setProject(string $project): self
     {
         $this->project = $project;
+        return $this;
+    }
+
+    public function getShiftTaskItem(): ?ShiftTaskItem
+    {
+        return $this->shiftTaskItem;
+    }
+
+    public function setShiftTaskItem(?ShiftTaskItem $shiftTaskItem): self
+    {
+        $this->shiftTaskItem = $shiftTaskItem;
         return $this;
     }
 

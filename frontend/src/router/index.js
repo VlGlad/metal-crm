@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import ShiftTasksView from '../components/ShiftTasks/ShiftTasksView.vue'
 import OtkControllersView from '../components/OtkControllers/OtkControllersView.vue'
+import ProductionProgressView from '../components/ProductionProgress/ProductionProgressView.vue'
 import AnalyticsView from '../components/Analytics/AnalyticsView.vue'
 import LoginView from '../components/Auth/LoginView.vue'
 import UsersView from '../components/Admin/UsersView.vue'
@@ -12,17 +13,28 @@ import { canAccessProcurementRequests, PROCUREMENT_REQUEST_PARTICIPANT_ROLES } f
 import { canAccessWorkingDocuments, WORKING_DOCUMENT_PARTICIPANT_ROLES } from '../constants/workingDocumentRoles.js'
 import { canAccessMonthlyPlans, MONTHLY_PLAN_PARTICIPANT_ROLES } from '../constants/monthlyPlanRoles.js'
 import { canAccessOrders, ORDER_PARTICIPANT_ROLES } from '../constants/orderRoles.js'
+import { canAccessProductionProgress, PRODUCTION_PROGRESS_ROLES } from '../constants/productionProgressRoles.js'
 import { clearSession, getCurrentUser } from '../services/auth.js'
 
 const routes = [
   {
     path: '/',
-    redirect: '/master'
+    redirect: '/production'
   },
   {
     path: '/login',
     name: 'login',
     component: LoginView
+  },
+  {
+    path: '/production',
+    name: 'production',
+    component: ProductionProgressView,
+    meta: {
+      title: 'Производство',
+      requiresAuth: true,
+      roles: PRODUCTION_PROGRESS_ROLES
+    }
   },
   {
     path: '/procurement-requests',
@@ -112,10 +124,7 @@ const router = createRouter({
 
 function getDefaultRoute(roles = []) {
   if (roles.includes('ROLE_ADMIN')) return '/users'
-  if (roles.includes('ROLE_CONTROLLER_OTK')) return '/otk-controllers'
-  if (['ROLE_MASTER', 'ROLE_CRO', 'ROLE_SSC', 'ROLE_CPO'].some(role => roles.includes(role))) {
-    return '/master'
-  }
+  if (canAccessProductionProgress(roles)) return '/production'
   if (canAccessWorkingDocuments(roles)) return '/working-documents'
   if (canAccessOrders(roles)) return '/orders'
   if (canAccessMonthlyPlans(roles)) return '/monthly-plans'
@@ -132,7 +141,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.path === '/login' && isAuthenticated) {
-    return '/master'
+    return '/production'
   }
 
   if (to.meta.roles?.length) {

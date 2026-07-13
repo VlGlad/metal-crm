@@ -3,7 +3,9 @@
 namespace App\Controller;
 
 use App\Entity\OtkInspection;
+use App\Entity\ShiftTaskItem;
 use App\Repository\OtkInspectionRepository;
+use App\Repository\ShiftTaskItemRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -31,12 +33,16 @@ class OtkInspectionController extends AbstractController
     }
 
     #[Route('', methods: ['POST'])]
-    public function create(Request $request, EntityManagerInterface $em): JsonResponse
-    {
+    public function create(
+        Request $request,
+        EntityManagerInterface $em,
+        ShiftTaskItemRepository $shiftTaskItems
+    ): JsonResponse {
         $data = $this->getJsonData($request);
 
         $inspection = new OtkInspection();
         $this->fillInspection($inspection, $data);
+        $this->fillShiftTaskItem($inspection, $data, $shiftTaskItems);
 
         $error = $this->validateInspection($inspection);
 
@@ -54,11 +60,13 @@ class OtkInspectionController extends AbstractController
     public function update(
         OtkInspection $inspection,
         Request $request,
-        EntityManagerInterface $em
+        EntityManagerInterface $em,
+        ShiftTaskItemRepository $shiftTaskItems
     ): JsonResponse {
         $data = $this->getJsonData($request);
 
         $this->fillInspection($inspection, $data);
+        $this->fillShiftTaskItem($inspection, $data, $shiftTaskItems);
         $inspection->touch();
 
         $error = $this->validateInspection($inspection);
@@ -189,6 +197,19 @@ class OtkInspectionController extends AbstractController
         }
     }
 
+    private function fillShiftTaskItem(
+        OtkInspection $inspection,
+        array $data,
+        ShiftTaskItemRepository $shiftTaskItems
+    ): void {
+        if (!array_key_exists('shiftTaskItemId', $data)) {
+            return;
+        }
+
+        $id = (int) ($data['shiftTaskItemId'] ?? 0);
+        $inspection->setShiftTaskItem($id > 0 ? $shiftTaskItems->find($id) : null);
+    }
+
     private function validateInspection(OtkInspection $inspection): ?string
     {
         if (!$inspection->getDate()) {
@@ -240,6 +261,7 @@ class OtkInspectionController extends AbstractController
             'date' => $inspection->getDate()?->format('Y-m-d'),
             'name' => $inspection->getName(),
             'project' => $inspection->getProject(),
+            'shiftTaskItemId' => $inspection->getShiftTaskItem()?->getId(),
             'presentedQuantity' => $inspection->getPresentedQuantity(),
             'acceptedQuantity' => $inspection->getAcceptedQuantity(),
             'rejectedQuantity' => $inspection->getRejectedQuantity(),

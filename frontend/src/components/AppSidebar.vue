@@ -17,12 +17,8 @@
         <span>Заявки на ТМЦ</span>
       </RouterLink>
 
-      <RouterLink v-if="canSeeMaster" to="/master" class="nav-link">
-        <span>Мастер</span>
-      </RouterLink>
-
-      <RouterLink v-if="canSeeOtk" to="/otk-controllers" class="nav-link">
-        <span>Контролер ОТК</span>
+      <RouterLink v-if="canSeeProduction" to="/production" class="nav-link">
+        <span>Производство</span>
       </RouterLink>
 
       <RouterLink v-if="isAdmin" to="/users" class="nav-link">
@@ -44,6 +40,7 @@ import { canAccessOrders } from '../constants/orderRoles.js'
 import { canAccessMonthlyPlans } from '../constants/monthlyPlanRoles.js'
 import { canAccessWorkingDocuments } from '../constants/workingDocumentRoles.js'
 import { canAccessProcurementRequests } from '../constants/procurementRequestRoles.js'
+import { canAccessProductionProgress } from '../constants/productionProgressRoles.js'
 
 const router = useRouter()
 
@@ -55,13 +52,7 @@ const canSeeWorkingDocuments = computed(() => canAccessWorkingDocuments(roles.va
 const canSeeMonthlyPlans = computed(() => canAccessMonthlyPlans(roles.value))
 const canSeeOrders = computed(() => canAccessOrders(roles.value))
 const isAdmin = computed(() => roles.value.includes('ROLE_ADMIN'))
-const canSeeMaster = computed(() => {
-  return isAdmin.value || ['ROLE_MASTER', 'ROLE_CRO', 'ROLE_SSC', 'ROLE_CPO']
-    .some(role => roles.value.includes(role))
-})
-const canSeeOtk = computed(() => {
-  return isAdmin.value || roles.value.includes('ROLE_CONTROLLER_OTK')
-})
+const canSeeProduction = computed(() => canAccessProductionProgress(roles.value))
 
 onMounted(async () => {
   try {

@@ -42,6 +42,7 @@ import { canAccessOrders } from '../../constants/orderRoles.js'
 import { canAccessMonthlyPlans } from '../../constants/monthlyPlanRoles.js'
 import { canAccessWorkingDocuments } from '../../constants/workingDocumentRoles.js'
 import { canAccessProcurementRequests } from '../../constants/procurementRequestRoles.js'
+import { canAccessProductionProgress } from '../../constants/productionProgressRoles.js'
 import BaseAlert from '../ShiftTasks/BaseAlert.vue'
 
 const router = useRouter()
@@ -79,19 +80,17 @@ async function submit() {
         const roles = user?.roles || []
         const routeName = roles.includes('ROLE_ADMIN')
           ? 'users'
-          : roles.includes('ROLE_CONTROLLER_OTK')
-            ? 'otk-controllers'
-            : ['ROLE_MASTER', 'ROLE_CRO', 'ROLE_SSC', 'ROLE_CPO'].some(role => roles.includes(role))
-              ? 'master'
-              : canAccessWorkingDocuments(roles)
-                ? 'working-documents'
-                : canAccessOrders(roles)
-                  ? 'orders'
+          : canAccessProductionProgress(roles)
+            ? 'production'
+            : canAccessWorkingDocuments(roles)
+              ? 'working-documents'
+              : canAccessOrders(roles)
+                ? 'orders'
                 : canAccessMonthlyPlans(roles)
                   ? 'monthly-plans'
                   : canAccessProcurementRequests(roles)
                     ? 'procurement-requests'
-                    : 'master'
+                    : 'production'
         await router.push({ name: routeName })
     } catch (e) {
         error.value = e.message
