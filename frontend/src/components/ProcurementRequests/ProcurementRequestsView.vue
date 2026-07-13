@@ -117,18 +117,26 @@
           </div>
 
           <div class="history">
-            <h3>История обработки</h3>
-            <p v-if="!form.events.length" class="muted">Действий по заявке пока нет.</p>
-            <div v-else class="history-list">
-              <div v-for="event in form.events" :key="event.id" class="history-item">
-                <span class="history-dot"></span>
-                <div>
-                  <strong>{{ statusLabel(event.toStatus) }}</strong>
-                  <p>{{ formatDateTime(event.createdAt) }} · {{ event.createdBy || 'Пользователь не указан' }}</p>
-                  <small v-if="event.comment">{{ event.comment }}</small>
+            <div class="history-header">
+              <h3>История обработки</h3>
+              <button class="secondary history-toggle" type="button" @click="historyOpen = !historyOpen">
+                {{ historyOpen ? 'Скрыть историю' : 'Показать историю' }}
+              </button>
+            </div>
+
+            <template v-if="historyOpen">
+              <p v-if="!form.events.length" class="muted">Действий по заявке пока нет.</p>
+              <div v-else class="history-list">
+                <div v-for="event in form.events" :key="event.id" class="history-item">
+                  <span class="history-dot"></span>
+                  <div>
+                    <strong>{{ statusLabel(event.toStatus) }}</strong>
+                    <p>{{ formatDateTime(event.createdAt) }} · {{ event.createdBy || 'Пользователь не указан' }}</p>
+                    <small v-if="event.comment">{{ event.comment }}</small>
+                  </div>
                 </div>
               </div>
-            </div>
+            </template>
           </div>
         </section>
 
@@ -219,6 +227,7 @@ const uploading = ref(false)
 const error = ref('')
 const success = ref('')
 const form = reactive(emptyRequest())
+const historyOpen = ref(false)
 
 const canEditForm = computed(() => {
   return !form.id ? canCreate.value : Boolean(form.permissions.canEdit)
@@ -293,11 +302,13 @@ function setMessage(type, message) {
 function startCreating() {
   Object.assign(form, emptyRequest())
   form.permissions.canEdit = canCreate.value
+  historyOpen.value = false
   setMessage('', '')
 }
 
 function selectRequest(item) {
   Object.assign(form, normalizeRequest(item))
+  historyOpen.value = false
   setMessage('', '')
 }
 
@@ -703,8 +714,20 @@ legend {
   overflow-wrap: anywhere;
 }
 
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .history h3 {
-  margin-bottom: 10px;
+  margin-bottom: 0;
+}
+
+.history-toggle {
+  width: auto;
+  padding: 8px 12px;
 }
 
 .history-list {
