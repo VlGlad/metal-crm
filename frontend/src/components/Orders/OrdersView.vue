@@ -201,6 +201,11 @@ const documentTypes = [
     value: 'specification_and_contracts',
     label: 'Заключение спецификации и договоры',
     description: 'Спецификации, договоры и документы отдела продаж.'
+  },
+  {
+    value: 'order_supporting_documents',
+    label: 'Письма согласования и технические требования',
+    description: 'Дополнительные материалы по заказу: письма, техтребования и прочие файлы.'
   }
 ]
 

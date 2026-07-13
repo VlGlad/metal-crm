@@ -26,12 +26,20 @@ final class ProductionOrderController extends AbstractController
         DocumentType::KM_PROJECT,
         DocumentType::ORDER_CALCULATION,
         DocumentType::SPECIFICATION_AND_CONTRACTS,
+        DocumentType::ORDER_SUPPORTING_DOCUMENTS,
+    ];
+
+    private const REQUIRED_DOCUMENT_TYPES = [
+        DocumentType::KM_PROJECT,
+        DocumentType::ORDER_CALCULATION,
+        DocumentType::SPECIFICATION_AND_CONTRACTS,
     ];
 
     private const DOCUMENT_LABELS = [
         'km_project' => 'КМ',
         'order_calculation' => 'Калькуляция заказа',
         'specification_and_contracts' => 'Заключение спецификации и договоры',
+        'order_supporting_documents' => 'Письма согласования и технические требования',
     ];
 
     public function __construct(
@@ -197,7 +205,6 @@ final class ProductionOrderController extends AbstractController
             $order->touch();
             $this->entityManager->flush();
         } catch (\Throwable $exception) {
-            dd($exception);
             foreach ($storedNames as $storedName) {
                 $this->storage->delete($storedName);
             }
@@ -290,7 +297,7 @@ final class ProductionOrderController extends AbstractController
             return $this->json(['message' => 'Перед выдачей в работу укажите номер заказа.'], 422);
         }
 
-        foreach (self::DOCUMENT_TYPES as $type) {
+        foreach (self::REQUIRED_DOCUMENT_TYPES as $type) {
             if (!$this->hasDocumentType($order, $type)) {
                 return $this->json([
                     'message' => sprintf('Загрузите хотя бы один документ типа «%s».', self::DOCUMENT_LABELS[$type->value]),

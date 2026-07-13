@@ -75,6 +75,7 @@ final class ProductionOrderAccess
                 User::ROLE_SALES_MANAGER,
                 User::ROLE_ADMIN,
             ],
+            DocumentType::ORDER_SUPPORTING_DOCUMENTS => self::PARTICIPANT_ROLES,
             default => [],
         });
     }
@@ -92,6 +93,13 @@ final class ProductionOrderAccess
                 User::ROLE_ADMIN,
             ],
             DocumentType::SPECIFICATION_AND_CONTRACTS => [
+                User::ROLE_SALES_HEAD,
+                User::ROLE_SALES_MANAGER,
+                User::ROLE_ADMIN,
+            ],
+            DocumentType::ORDER_SUPPORTING_DOCUMENTS => [
+                User::ROLE_PTO_HEAD,
+                User::ROLE_RESPONSIBLE_EXECUTOR,
                 User::ROLE_SALES_HEAD,
                 User::ROLE_SALES_MANAGER,
                 User::ROLE_ADMIN,

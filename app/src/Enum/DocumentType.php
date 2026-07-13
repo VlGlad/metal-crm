@@ -7,6 +7,7 @@ enum DocumentType: string
     case KM_PROJECT = 'km_project';
     case ORDER_CALCULATION = 'order_calculation';
     case SPECIFICATION_AND_CONTRACTS = 'specification_and_contracts';
+    case ORDER_SUPPORTING_DOCUMENTS = 'order_supporting_documents';
     case KMD = 'kmd';
     case CUTTING_DRAWINGS_AND_PROGRAMS = 'cutting_drawings_and_programs';
     case PRODUCTION_PLAN = 'production_plan';
