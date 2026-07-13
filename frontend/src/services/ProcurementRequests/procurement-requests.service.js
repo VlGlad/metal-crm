@@ -15,6 +15,11 @@ export async function updateProcurementRequest(id, payload) {
   return data
 }
 
+export async function transitionProcurementRequest(id, action, payload = {}) {
+  const { data } = await http.post(`/procurement-requests/${id}/${action}`, payload)
+  return data
+}
+
 export async function uploadProcurementRequestFiles(id, files) {
   let result = null
 

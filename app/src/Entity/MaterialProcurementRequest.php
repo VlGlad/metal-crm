@@ -11,6 +11,12 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'material_procurement_requests')]
 class MaterialProcurementRequest
 {
+    public const STATUS_DRAFT = 'draft';
+    public const STATUS_SUBMITTED = 'submitted';
+    public const STATUS_ACCEPTED = 'accepted';
+    public const STATUS_PURCHASED = 'purchased';
+    public const STATUS_RECEIVED = 'received';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -18,6 +24,37 @@ class MaterialProcurementRequest
 
     #[ORM\Column(type: 'date_immutable')]
     private \DateTimeImmutable $month;
+
+    #[ORM\Column(length: 30)]
+    private string $status = self::STATUS_DRAFT;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $submittedAt = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $submittedBy = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $acceptedAt = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $acceptedBy = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $purchasedAt = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $purchasedBy = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $receivedAt = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $receivedBy = null;
 
     /**
      * @var Collection<int, ProductionOrder>
@@ -51,6 +88,18 @@ class MaterialProcurementRequest
     #[ORM\OrderBy(['uploadedAt' => 'DESC', 'id' => 'DESC'])]
     private Collection $files;
 
+    /**
+     * @var Collection<int, MaterialProcurementRequestEvent>
+     */
+    #[ORM\OneToMany(
+        mappedBy: 'request',
+        targetEntity: MaterialProcurementRequestEvent::class,
+        cascade: ['persist', 'remove'],
+        orphanRemoval: true
+    )]
+    #[ORM\OrderBy(['createdAt' => 'DESC', 'id' => 'DESC'])]
+    private Collection $events;
+
     public function __construct()
     {
         $now = new \DateTimeImmutable();
@@ -59,10 +108,21 @@ class MaterialProcurementRequest
         $this->updatedAt = $now;
         $this->orders = new ArrayCollection();
         $this->files = new ArrayCollection();
+        $this->events = new ArrayCollection();
     }
 
     public function getId(): ?int { return $this->id; }
     public function getMonth(): \DateTimeImmutable { return $this->month; }
+    public function getStatus(): string { return $this->status; }
+
+    public function getSubmittedAt(): ?\DateTimeImmutable { return $this->submittedAt; }
+    public function getSubmittedBy(): ?User { return $this->submittedBy; }
+    public function getAcceptedAt(): ?\DateTimeImmutable { return $this->acceptedAt; }
+    public function getAcceptedBy(): ?User { return $this->acceptedBy; }
+    public function getPurchasedAt(): ?\DateTimeImmutable { return $this->purchasedAt; }
+    public function getPurchasedBy(): ?User { return $this->purchasedBy; }
+    public function getReceivedAt(): ?\DateTimeImmutable { return $this->receivedAt; }
+    public function getReceivedBy(): ?User { return $this->receivedBy; }
 
     public function setMonth(\DateTimeImmutable $month): self
     {
@@ -119,9 +179,70 @@ class MaterialProcurementRequest
         return $this;
     }
 
+    /** @return Collection<int, MaterialProcurementRequestEvent> */
+    public function getEvents(): Collection { return $this->events; }
+
+    public function addEvent(MaterialProcurementRequestEvent $event): self
+    {
+        if (!$this->events->contains($event)) {
+            $this->events->add($event);
+            $event->setRequest($this);
+        }
+
+        return $this;
+    }
+
+    public function transitionTo(string $status, ?User $user, ?string $comment = null): self
+    {
+        $fromStatus = $this->status;
+        $now = new \DateTimeImmutable();
+        $this->status = $status;
+
+        match ($status) {
+            self::STATUS_SUBMITTED => $this->markSubmitted($now, $user),
+            self::STATUS_ACCEPTED => $this->markAccepted($now, $user),
+            self::STATUS_PURCHASED => $this->markPurchased($now, $user),
+            self::STATUS_RECEIVED => $this->markReceived($now, $user),
+            default => null,
+        };
+
+        $this->addEvent((new MaterialProcurementRequestEvent())
+            ->setFromStatus($fromStatus)
+            ->setToStatus($status)
+            ->setComment($comment)
+            ->setCreatedBy($user));
+
+        return $this->touch();
+    }
+
+    private function markSubmitted(\DateTimeImmutable $date, ?User $user): void
+    {
+        $this->submittedAt = $date;
+        $this->submittedBy = $user;
+    }
+
+    private function markAccepted(\DateTimeImmutable $date, ?User $user): void
+    {
+        $this->acceptedAt = $date;
+        $this->acceptedBy = $user;
+    }
+
+    private function markPurchased(\DateTimeImmutable $date, ?User $user): void
+    {
+        $this->purchasedAt = $date;
+        $this->purchasedBy = $user;
+    }
+
+    private function markReceived(\DateTimeImmutable $date, ?User $user): void
+    {
+        $this->receivedAt = $date;
+        $this->receivedBy = $user;
+    }
+
     public function touch(): self
     {
         $this->updatedAt = new \DateTimeImmutable();
         return $this;
     }
 }
+

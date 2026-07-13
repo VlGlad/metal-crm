@@ -65,7 +65,7 @@ final class MaterialProcurementRequestController extends AbstractController
                 fn (ProductionOrder $order) => $this->serializeOrderOption($order),
                 $this->orders->findBy([], ['id' => 'DESC'])
             ),
-            'canCreate' => true,
+            'canCreate' => $this->access->canCreate($user),
         ]);
     }
 
@@ -74,7 +74,7 @@ final class MaterialProcurementRequestController extends AbstractController
     {
         $user = $this->currentUser();
 
-        if (!$this->access->canAccess($user)) {
+        if (!$this->access->canCreate($user)) {
             return $this->json(['message' => 'Нет права создавать заявки.'], 403);
         }
 
@@ -105,7 +105,7 @@ final class MaterialProcurementRequestController extends AbstractController
             return $this->json(['message' => 'Заявка не найдена.'], 404);
         }
 
-        if (!$this->access->canAccess($this->currentUser())) {
+        if (!$this->access->canEdit($this->currentUser())) {
             return $this->json(['message' => 'Нет права редактировать заявку.'], 403);
         }
 
@@ -219,6 +219,58 @@ final class MaterialProcurementRequestController extends AbstractController
         return $response;
     }
 
+    #[Route('/{id}/submit', methods: ['POST'])]
+    public function submit(int $id, Request $request): JsonResponse
+    {
+        return $this->transition(
+            $id,
+            $request,
+            MaterialProcurementRequest::STATUS_DRAFT,
+            MaterialProcurementRequest::STATUS_SUBMITTED,
+            'canSubmit',
+            'Заявку можно отдать в работу только из черновика.'
+        );
+    }
+
+    #[Route('/{id}/accept', methods: ['POST'])]
+    public function accept(int $id, Request $request): JsonResponse
+    {
+        return $this->transition(
+            $id,
+            $request,
+            MaterialProcurementRequest::STATUS_SUBMITTED,
+            MaterialProcurementRequest::STATUS_ACCEPTED,
+            'canAccept',
+            'Принять можно только заявку, переданную в работу.'
+        );
+    }
+
+    #[Route('/{id}/mark-purchased', methods: ['POST'])]
+    public function markPurchased(int $id, Request $request): JsonResponse
+    {
+        return $this->transition(
+            $id,
+            $request,
+            MaterialProcurementRequest::STATUS_ACCEPTED,
+            MaterialProcurementRequest::STATUS_PURCHASED,
+            'canMarkPurchased',
+            'Отметить закупку можно только после принятия заявки в работу.'
+        );
+    }
+
+    #[Route('/{id}/mark-received', methods: ['POST'])]
+    public function markReceived(int $id, Request $request): JsonResponse
+    {
+        return $this->transition(
+            $id,
+            $request,
+            MaterialProcurementRequest::STATUS_PURCHASED,
+            MaterialProcurementRequest::STATUS_RECEIVED,
+            'canMarkReceived',
+            'Отметить поступление можно только после закупки материала.'
+        );
+    }
+
     #[Route('/{requestId}/documents/{fileId}', methods: ['DELETE'])]
     public function deleteFile(int $requestId, int $fileId): JsonResponse
     {
@@ -238,6 +290,42 @@ final class MaterialProcurementRequestController extends AbstractController
         $this->entityManager->remove($file);
         $this->entityManager->flush();
         $this->storage->delete($storedName);
+
+        return $this->json($this->serializeRequest($entity));
+    }
+
+    private function transition(
+        int $id,
+        Request $request,
+        string $expectedStatus,
+        string $targetStatus,
+        string $permissionMethod,
+        string $invalidStatusMessage
+    ): JsonResponse {
+        $entity = $this->requests->find($id);
+
+        if (!$entity) {
+            return $this->json(['message' => 'Заявка не найдена.'], 404);
+        }
+
+        $user = $this->currentUser();
+
+        if (!$this->access->{$permissionMethod}($user)) {
+            return $this->json(['message' => 'Нет права выполнить это действие.'], 403);
+        }
+
+        if ($entity->getStatus() !== $expectedStatus) {
+            return $this->json(['message' => $invalidStatusMessage], 422);
+        }
+
+        $comment = trim((string) ($this->decodeJson($request)['comment'] ?? ''));
+
+        if (mb_strlen($comment) > 1000) {
+            return $this->json(['message' => 'Комментарий не должен превышать 1000 символов.'], 422);
+        }
+
+        $entity->transitionTo($targetStatus, $user, $comment);
+        $this->entityManager->flush();
 
         return $this->json($this->serializeRequest($entity));
     }
@@ -280,6 +368,9 @@ final class MaterialProcurementRequestController extends AbstractController
                 fn (ProductionOrder $order) => $this->serializeOrderOption($order),
                 $request->getOrders()->toArray()
             ),
+            'status' => $request->getStatus(),
+            'workflow' => $this->serializeWorkflow($request),
+            'events' => $this->serializeEvents($request),
             'files' => array_map(
                 fn (MaterialProcurementRequestFile $file) => [
                     'id' => $file->getId(),
@@ -296,10 +387,52 @@ final class MaterialProcurementRequestController extends AbstractController
                 ],
                 $request->getFiles()->toArray()
             ),
-            'permissions' => ['canEdit' => $this->access->canAccess($this->currentUser())],
+            'permissions' => $this->serializePermissions($request),
             'createdBy' => $request->getCreatedBy()?->getFullName(),
             'createdAt' => $request->getCreatedAt()->format(DATE_ATOM),
             'updatedAt' => $request->getUpdatedAt()->format(DATE_ATOM),
+        ];
+    }
+
+    private function serializeWorkflow(MaterialProcurementRequest $request): array
+    {
+        return [
+            'submittedAt' => $request->getSubmittedAt()?->format(DATE_ATOM),
+            'submittedBy' => $request->getSubmittedBy()?->getFullName(),
+            'acceptedAt' => $request->getAcceptedAt()?->format(DATE_ATOM),
+            'acceptedBy' => $request->getAcceptedBy()?->getFullName(),
+            'purchasedAt' => $request->getPurchasedAt()?->format(DATE_ATOM),
+            'purchasedBy' => $request->getPurchasedBy()?->getFullName(),
+            'receivedAt' => $request->getReceivedAt()?->format(DATE_ATOM),
+            'receivedBy' => $request->getReceivedBy()?->getFullName(),
+        ];
+    }
+
+    private function serializeEvents(MaterialProcurementRequest $request): array
+    {
+        return array_map(
+            fn ($event) => [
+                'id' => $event->getId(),
+                'fromStatus' => $event->getFromStatus(),
+                'toStatus' => $event->getToStatus(),
+                'comment' => $event->getComment(),
+                'createdBy' => $event->getCreatedBy()?->getFullName(),
+                'createdAt' => $event->getCreatedAt()->format(DATE_ATOM),
+            ],
+            $request->getEvents()->toArray()
+        );
+    }
+
+    private function serializePermissions(MaterialProcurementRequest $request): array
+    {
+        $user = $this->currentUser();
+
+        return [
+            'canEdit' => $this->access->canEdit($user),
+            'canSubmit' => $request->getStatus() === MaterialProcurementRequest::STATUS_DRAFT && $this->access->canSubmit($user),
+            'canAccept' => $request->getStatus() === MaterialProcurementRequest::STATUS_SUBMITTED && $this->access->canAccept($user),
+            'canMarkPurchased' => $request->getStatus() === MaterialProcurementRequest::STATUS_ACCEPTED && $this->access->canMarkPurchased($user),
+            'canMarkReceived' => $request->getStatus() === MaterialProcurementRequest::STATUS_PURCHASED && $this->access->canMarkReceived($user),
         ];
     }
 

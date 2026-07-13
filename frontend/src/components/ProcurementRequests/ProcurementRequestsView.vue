@@ -37,9 +37,12 @@
           :class="{ active: item.id === form.id }"
           @click="selectRequest(item)"
         >
-          <strong>{{ item.displayName }}</strong>
+          <span class="request-title">
+            <strong>{{ item.displayName }}</strong>
+            <i :class="['status-badge', `status-${item.status}`]">{{ statusLabel(item.status) }}</i>
+          </span>
           <span>{{ orderSummary(item.orders) }}</span>
-          <small>{{ item.files.length }} файл(ов)</small>
+          <small>{{ item.files.length }} файл(ов) · обновлена {{ formatDateTime(item.updatedAt) }}</small>
         </button>
       </aside>
 
@@ -48,6 +51,19 @@
           <div>
             <h2>{{ form.id ? form.displayName : 'Новая заявка на ТМЦ' }}</h2>
             <p class="muted">Выберите месяц и все заказы, входящие в заявку.</p>
+          </div>
+
+          <div v-if="form.id" class="workflow-actions">
+            <span :class="['status-badge', `status-${form.status}`]">{{ statusLabel(form.status) }}</span>
+            <button
+              v-if="nextAction"
+              class="primary"
+              type="button"
+              :disabled="saving"
+              @click="runWorkflowAction"
+            >
+              {{ nextAction.label }}
+            </button>
           </div>
         </div>
 
@@ -90,6 +106,31 @@
             </button>
           </div>
         </form>
+
+        <section v-if="form.id" class="workflow-panel">
+          <div class="workflow-grid">
+            <div v-for="step in workflowSteps" :key="step.key" class="workflow-step">
+              <span>{{ step.label }}</span>
+              <strong>{{ formatDateTime(form.workflow[`${step.key}At`]) }}</strong>
+              <small>{{ form.workflow[`${step.key}By`] || '—' }}</small>
+            </div>
+          </div>
+
+          <div class="history">
+            <h3>История обработки</h3>
+            <p v-if="!form.events.length" class="muted">Действий по заявке пока нет.</p>
+            <div v-else class="history-list">
+              <div v-for="event in form.events" :key="event.id" class="history-item">
+                <span class="history-dot"></span>
+                <div>
+                  <strong>{{ statusLabel(event.toStatus) }}</strong>
+                  <p>{{ formatDateTime(event.createdAt) }} · {{ event.createdBy || 'Пользователь не указан' }}</p>
+                  <small v-if="event.comment">{{ event.comment }}</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <article class="document-card">
           <div class="document-header">
@@ -149,9 +190,25 @@ import {
   deleteProcurementRequestFile,
   downloadProcurementRequestFile,
   getProcurementRequests,
+  transitionProcurementRequest,
   updateProcurementRequest,
   uploadProcurementRequestFiles
 } from '../../services/ProcurementRequests/procurement-requests.service.js'
+
+const STATUS_LABELS = {
+  draft: 'Черновик',
+  submitted: 'Передана в работу',
+  accepted: 'Принята в работу',
+  purchased: 'Материал закуплен',
+  received: 'Поступило на склад'
+}
+
+const workflowSteps = [
+  { key: 'submitted', label: 'Передана в работу' },
+  { key: 'accepted', label: 'Принята в работу' },
+  { key: 'purchased', label: 'Материал закуплен' },
+  { key: 'received', label: 'Поступило на склад' }
+]
 
 const requests = ref([])
 const orderOptions = ref([])
@@ -167,6 +224,14 @@ const canEditForm = computed(() => {
   return !form.id ? canCreate.value : Boolean(form.permissions.canEdit)
 })
 
+const nextAction = computed(() => {
+  if (form.permissions.canSubmit) return { action: 'submit', label: 'Отдать в работу' }
+  if (form.permissions.canAccept) return { action: 'accept', label: 'Принять в работу' }
+  if (form.permissions.canMarkPurchased) return { action: 'mark-purchased', label: 'Материал закуплен' }
+  if (form.permissions.canMarkReceived) return { action: 'mark-received', label: 'Поступило на склад' }
+  return null
+})
+
 function currentMonth() {
   return new Date().toISOString().slice(0, 7)
 }
@@ -178,8 +243,26 @@ function emptyRequest() {
     displayName: '',
     orderIds: [],
     orders: [],
+    status: 'draft',
+    workflow: {
+      submittedAt: null,
+      submittedBy: null,
+      acceptedAt: null,
+      acceptedBy: null,
+      purchasedAt: null,
+      purchasedBy: null,
+      receivedAt: null,
+      receivedBy: null
+    },
+    events: [],
     files: [],
-    permissions: { canEdit: false }
+    permissions: {
+      canEdit: false,
+      canSubmit: false,
+      canAccept: false,
+      canMarkPurchased: false,
+      canMarkReceived: false
+    }
   }
 }
 
@@ -189,6 +272,11 @@ function normalizeRequest(item = {}) {
     ...item,
     orderIds: Array.isArray(item.orders) ? item.orders.map(order => order.id) : [],
     orders: Array.isArray(item.orders) ? item.orders : [],
+    workflow: {
+      ...emptyRequest().workflow,
+      ...(item.workflow ?? {})
+    },
+    events: Array.isArray(item.events) ? item.events : [],
     files: Array.isArray(item.files) ? item.files : [],
     permissions: {
       ...emptyRequest().permissions,
@@ -267,6 +355,27 @@ async function saveRequest() {
   }
 }
 
+async function runWorkflowAction() {
+  if (!nextAction.value || !form.id) return
+
+  const comment = window.prompt('Комментарий к действию, если нужен:', '')
+  if (comment === null) return
+
+  saving.value = true
+  setMessage('', '')
+
+  try {
+    const updated = await transitionProcurementRequest(form.id, nextAction.value.action, { comment })
+    Object.assign(form, normalizeRequest(updated))
+    await loadRequests(updated.id)
+    setMessage('success', 'Статус заявки обновлён.')
+  } catch (exception) {
+    setMessage('error', errorMessage(exception, 'Не удалось обновить статус заявки.'))
+  } finally {
+    saving.value = false
+  }
+}
+
 async function upload(event) {
   const files = Array.from(event.target.files ?? [])
   event.target.value = ''
@@ -312,6 +421,10 @@ async function download(file) {
   } catch (exception) {
     setMessage('error', errorMessage(exception, 'Не удалось скачать файл.'))
   }
+}
+
+function statusLabel(status) {
+  return STATUS_LABELS[status] || status || '—'
 }
 
 function orderSummary(orders) {
@@ -441,6 +554,13 @@ h1 {
   background: #eef4ff;
 }
 
+.request-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .request-item span,
 .request-item small {
   overflow-wrap: anywhere;
@@ -448,6 +568,47 @@ h1 {
 
 .request-item small {
   color: #607080;
+}
+
+.workflow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #526170;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.status-submitted {
+  background: #fff7e6;
+  color: #9a5b00;
+}
+
+.status-accepted {
+  background: #eef4ff;
+  color: #1f63b6;
+}
+
+.status-purchased {
+  background: #f0eaff;
+  color: #6941c6;
+}
+
+.status-received {
+  background: #eaf8ef;
+  color: #16703b;
 }
 
 .request-form {
@@ -504,6 +665,75 @@ legend {
 
 .save-row {
   justify-content: flex-end;
+}
+
+.workflow-panel {
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid #e1e7ef;
+  border-radius: 14px;
+  background: #fbfcfe;
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workflow-step {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e1e7ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.workflow-step span,
+.workflow-step small {
+  color: #607080;
+}
+
+.workflow-step strong,
+.workflow-step small {
+  overflow-wrap: anywhere;
+}
+
+.history h3 {
+  margin-bottom: 10px;
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.history-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: #2f80ed;
+}
+
+.history-item p {
+  margin-bottom: 3px;
+  color: #607080;
+  font-size: 13px;
+}
+
+.history-item small {
+  overflow-wrap: anywhere;
 }
 
 .document-card {
@@ -586,7 +816,8 @@ legend {
 
 @media (max-width: 1100px) {
   .requests-layout,
-  .orders-grid {
+  .orders-grid,
+  .workflow-grid {
     grid-template-columns: 1fr;
   }
 
