@@ -107,39 +107,6 @@
           </div>
         </form>
 
-        <section v-if="form.id" class="workflow-panel">
-          <div class="workflow-grid">
-            <div v-for="step in workflowSteps" :key="step.key" class="workflow-step">
-              <span>{{ step.label }}</span>
-              <strong>{{ formatDateTime(form.workflow[`${step.key}At`]) }}</strong>
-              <small>{{ form.workflow[`${step.key}By`] || '—' }}</small>
-            </div>
-          </div>
-
-          <div class="history">
-            <div class="history-header">
-              <h3>История обработки</h3>
-              <button class="secondary history-toggle" type="button" @click="historyOpen = !historyOpen">
-                {{ historyOpen ? 'Скрыть историю' : 'Показать историю' }}
-              </button>
-            </div>
-
-            <template v-if="historyOpen">
-              <p v-if="!form.events.length" class="muted">Действий по заявке пока нет.</p>
-              <div v-else class="history-list">
-                <div v-for="event in form.events" :key="event.id" class="history-item">
-                  <span class="history-dot"></span>
-                  <div>
-                    <strong>{{ statusLabel(event.toStatus) }}</strong>
-                    <p>{{ formatDateTime(event.createdAt) }} · {{ event.createdBy || 'Пользователь не указан' }}</p>
-                    <small v-if="event.comment">{{ event.comment }}</small>
-                  </div>
-                </div>
-              </div>
-            </template>
-          </div>
-        </section>
-
         <article class="document-card">
           <div class="document-header">
             <div>
@@ -184,6 +151,40 @@
             />
           </label>
         </article>
+
+        <section v-if="form.id" class="workflow-panel">
+          <div class="workflow-grid">
+            <div v-for="step in workflowSteps" :key="step.key" class="workflow-step">
+              <span>{{ step.label }}</span>
+              <strong>{{ formatDateTime(form.workflow[`${step.key}At`]) }}</strong>
+              <small>{{ form.workflow[`${step.key}By`] || '—' }}</small>
+            </div>
+          </div>
+
+          <div class="history">
+            <div class="history-header">
+              <h3>История обработки</h3>
+              <button class="secondary history-toggle" type="button" @click="historyOpen = !historyOpen">
+                {{ historyOpen ? 'Скрыть историю' : 'Показать историю' }}
+              </button>
+            </div>
+
+            <template v-if="historyOpen">
+              <p v-if="!form.events.length" class="muted">Действий по заявке пока нет.</p>
+              <div v-else class="history-list">
+                <div v-for="event in form.events" :key="event.id" class="history-item">
+                  <span class="history-dot"></span>
+                  <div>
+                    <strong>{{ statusLabel(event.toStatus) }}</strong>
+                    <p>{{ formatDateTime(event.createdAt) }} · {{ event.createdBy || 'Пользователь не указан' }}</p>
+                    <small v-if="event.comment">{{ event.comment }}</small>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </section>
+
       </section>
     </section>
   </main>
