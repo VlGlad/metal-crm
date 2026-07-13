@@ -155,7 +155,6 @@
                   type="file"
                   multiple
                   :disabled="!form.id || uploading"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.rtf,.txt,.csv,.zip,.jpg,.jpeg,.png"
                   @change="upload(documentType.value, $event)"
                 />
               </label>
