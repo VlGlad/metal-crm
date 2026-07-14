@@ -6,9 +6,14 @@
         <p class="subtitle">Единое поле: выполнение мастером, контроль ОТК и готовность изделия.</p>
       </div>
 
-      <button class="secondary" :disabled="loading" @click="loadProgress">
-        Обновить
-      </button>
+      <div class="header-actions">
+        <RouterLink v-if="permissions.canEditMaster" class="secondary link-button" to="/master">
+          Редактировать задания
+        </RouterLink>
+        <button class="secondary" :disabled="loading" @click="loadProgress">
+          Обновить
+        </button>
+      </div>
     </header>
 
     <BaseAlert v-if="error" type="error" :message="error" />
@@ -294,6 +299,17 @@ onMounted(loadProgress)
 .progress-header {
   align-items: flex-start;
   margin-bottom: 24px;
+}
+
+.header-actions {
+  justify-content: flex-end;
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  text-decoration: none;
 }
 
 .header-actions {
