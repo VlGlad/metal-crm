@@ -90,7 +90,7 @@ async function submit() {
                   ? 'monthly-plans'
                   : canAccessProcurementRequests(roles)
                     ? 'procurement-requests'
-                    : 'production'
+                    : 'document-workflows'
         await router.push({ name: routeName })
     } catch (e) {
         error.value = e.message

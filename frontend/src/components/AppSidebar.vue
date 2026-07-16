@@ -17,6 +17,14 @@
         <span>Заявки на ТМЦ</span>
       </RouterLink>
 
+      <RouterLink to="/document-workflows" class="nav-link">
+        <span>Документооборот</span>
+      </RouterLink>
+
+      <RouterLink to="/task-assignments" class="nav-link">
+        <span>Поручения</span>
+      </RouterLink>
+
       <RouterLink v-if="canSeeProduction" to="/production" class="nav-link">
         <span>Производство</span>
       </RouterLink>

@@ -9,11 +9,15 @@ import OrdersView from '../components/Orders/OrdersView.vue'
 import MonthlyPlansView from '../components/MonthlyPlans/MonthlyPlansView.vue'
 import WorkingDocumentsView from '../components/WorkingDocuments/WorkingDocumentsView.vue'
 import ProcurementRequestsView from '../components/ProcurementRequests/ProcurementRequestsView.vue'
+import DocumentWorkflowsView from '../components/DocumentWorkflows/DocumentWorkflowsView.vue'
+import TaskAssignmentsView from '../components/TaskAssignments/TaskAssignmentsView.vue'
 import { canAccessProcurementRequests, PROCUREMENT_REQUEST_PARTICIPANT_ROLES } from '../constants/procurementRequestRoles.js'
 import { canAccessWorkingDocuments, WORKING_DOCUMENT_PARTICIPANT_ROLES } from '../constants/workingDocumentRoles.js'
 import { canAccessMonthlyPlans, MONTHLY_PLAN_PARTICIPANT_ROLES } from '../constants/monthlyPlanRoles.js'
 import { canAccessOrders, ORDER_PARTICIPANT_ROLES } from '../constants/orderRoles.js'
 import { canAccessProductionProgress, PRODUCTION_PROGRESS_ROLES } from '../constants/productionProgressRoles.js'
+import { DOCUMENT_WORKFLOW_ROLES } from '../constants/documentWorkflowRoles.js'
+import { TASK_ASSIGNMENT_ROLES } from '../constants/taskAssignmentRoles.js'
 import { clearSession, getCurrentUser } from '../services/auth.js'
 
 const routes = [
@@ -25,6 +29,26 @@ const routes = [
     path: '/login',
     name: 'login',
     component: LoginView
+  },
+  {
+    path: '/document-workflows',
+    name: 'document-workflows',
+    component: DocumentWorkflowsView,
+    meta: {
+      title: 'Документооборот',
+      requiresAuth: true,
+      roles: DOCUMENT_WORKFLOW_ROLES
+    }
+  },
+  {
+    path: '/task-assignments',
+    name: 'task-assignments',
+    component: TaskAssignmentsView,
+    meta: {
+      title: 'Поручения',
+      requiresAuth: true,
+      roles: TASK_ASSIGNMENT_ROLES
+    }
   },
   {
     path: '/production',

@@ -11,6 +11,7 @@ parameters:
     monthly_plan_upload_directory: '%kernel.project_dir%/var/uploads/monthly-plans'
     working_documentation_upload_directory: '%kernel.project_dir%/var/uploads/working-documents'
     procurement_request_upload_directory: '%kernel.project_dir%/var/uploads/procurement-requests'
+    document_workflow_upload_directory: '%kernel.project_dir%/var/uploads/document-workflows'
 
 services:
     # default configuration for services in *this* file
@@ -38,6 +39,10 @@ services:
     App\Service\MaterialProcurementRequestFileStorage:
         arguments:
             $uploadDirectory: '%procurement_request_upload_directory%'
+
+    App\Service\DocumentWorkflowFileStorage:
+        arguments:
+            $uploadDirectory: '%document_workflow_upload_directory%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
