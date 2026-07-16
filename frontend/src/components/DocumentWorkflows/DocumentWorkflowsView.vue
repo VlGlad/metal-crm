@@ -139,7 +139,7 @@ async function createAssignment() { if (!assignment.title.trim()) return setMess
 function typeLabel(type) { return { common: 'Общий документ', protocol: 'Протокол', order: 'По заказу', technical: 'Технические требования' }[type] || type }
 function statusLabel(status) { return { draft: 'Черновик', in_approval: 'На согласовании', approved: 'Согласован', remarks: 'Есть замечания', rejected: 'Отклонён', revoked: 'Отозван' }[status] || status }
 function approvalLabel(status) { return { pending: 'Ожидает', approved: 'Согласовано', rejected: 'Не согласовано', remarks: 'Замечания' }[status] || status }
-function eventLabel(type) { return { created: 'Создание', updated: 'Обновление', started: 'Запуск', file_uploaded: 'Файлы загружены', file_deleted: 'Файл удалён', approval_approved: 'Согласовано', approval_rejected: 'Не согласовано', approval_remarks: 'Замечания', assignment_created: 'Поручение' }[type] || type }
+function eventLabel(type) { return { created: 'Создание', updated: 'Обновление', revised: 'Доработка', started: 'Запуск', file_uploaded: 'Файлы загружены', file_deleted: 'Файл удалён', approval_approved: 'Согласовано', approval_rejected: 'Не согласовано', approval_remarks: 'Замечания', assignment_created: 'Поручение' }[type] || type }
 function formatDateTime(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—' }
 function formatFileSize(bytes) { if (bytes < 1024) return `${bytes} Б`; if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`; return `${(bytes / 1024 / 1024).toFixed(1)} МБ` }
 function errorMessage(e, fallback) { return e?.response?.data?.message || e?.message || fallback }

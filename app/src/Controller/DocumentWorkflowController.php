@@ -62,23 +62,30 @@ final class DocumentWorkflowController extends AbstractController
     {
         $workflow = $this->findWorkflow($id);
         if (!$workflow) return $this->json(['message' => 'Документ не найден.'], 404);
-        if ($workflow->getStatus() !== DocumentWorkflow::STATUS_DRAFT) return $this->json(['message' => 'Редактировать можно только черновик.'], 422);
+        if (!$this->canRevise($workflow)) return $this->json(['message' => 'Редактировать можно только черновик или документ с замечаниями.'], 422);
         $data = $this->decodeJson($request);
         if ($error = $this->validatePayload($data)) return $this->json(['message' => $error], 422);
 
+        $wasInRemarks = $workflow->getStatus() === DocumentWorkflow::STATUS_REMARKS;
         $workflow
             ->setTitle((string) $data['title'])
             ->setDocumentType((string) ($data['documentType'] ?? 'common'))
             ->setDescription($data['description'] ?? null)
+            ->setStatus(DocumentWorkflow::STATUS_DRAFT)
+            ->setStartedAt(null)
+            ->setCompletedAt(null)
             ->touch();
         $workflow->clearApprovalSteps();
         $this->fillApprovers($workflow, $data['approverIds'] ?? []);
-        $this->addEvent($workflow, 'updated', 'Документ обновлён.');
+        $this->addEvent(
+            $workflow,
+            $wasInRemarks ? 'revised' : 'updated',
+            $wasInRemarks ? 'Документ доработан по замечаниям.' : 'Документ обновлён.'
+        );
         $this->entityManager->flush();
 
         return $this->json($this->serializeWorkflow($workflow));
     }
-
     #[Route('/{id}/files', methods: ['POST'])]
     public function upload(int $id, Request $request): JsonResponse
     {
@@ -146,9 +153,11 @@ final class DocumentWorkflowController extends AbstractController
     {
         $workflow = $this->findWorkflow($id);
         if (!$workflow) return $this->json(['message' => 'Документ не найден.'], 404);
+        if (!$this->canRevise($workflow)) return $this->json(['message' => 'Запустить согласование можно только из черновика или после замечаний.'], 422);
         if (!$workflow->getFiles()->count()) return $this->json(['message' => 'Перед запуском загрузите хотя бы один файл.'], 422);
         if (!$workflow->getApprovalSteps()->count()) return $this->json(['message' => 'Укажите согласующих.'], 422);
-        $workflow->setStatus(DocumentWorkflow::STATUS_IN_APPROVAL)->setStartedAt(new \DateTimeImmutable())->touch();
+        foreach ($workflow->getApprovalSteps() as $step) { $step->resetDecision(); }
+        $workflow->setStatus(DocumentWorkflow::STATUS_IN_APPROVAL)->setStartedAt(new \DateTimeImmutable())->setCompletedAt(null)->touch();
         $this->addEvent($workflow, 'started', 'Документ отправлен на согласование.');
         $this->entityManager->flush();
         return $this->json($this->serializeWorkflow($workflow));
@@ -259,10 +268,11 @@ final class DocumentWorkflowController extends AbstractController
             'createdBy' => $workflow->getCreatedBy()?->getFullName(),
             'startedAt' => $workflow->getStartedAt()?->format(DATE_ATOM), 'completedAt' => $workflow->getCompletedAt()?->format(DATE_ATOM),
             'createdAt' => $workflow->getCreatedAt()->format(DATE_ATOM), 'updatedAt' => $workflow->getUpdatedAt()->format(DATE_ATOM),
-            'permissions' => ['canStart' => $workflow->getStatus() === DocumentWorkflow::STATUS_DRAFT, 'canEdit' => $workflow->getStatus() === DocumentWorkflow::STATUS_DRAFT, 'canDecide' => (bool) $this->findUserStep($workflow, $this->currentUser())],
+            'permissions' => ['canStart' => $this->canRevise($workflow), 'canEdit' => $this->canRevise($workflow), 'canDecide' => $workflow->getStatus() === DocumentWorkflow::STATUS_IN_APPROVAL && (bool) $this->findUserStep($workflow, $this->currentUser())],
         ];
     }
 
+    private function canRevise(DocumentWorkflow $workflow): bool { return in_array($workflow->getStatus(), [DocumentWorkflow::STATUS_DRAFT, DocumentWorkflow::STATUS_REMARKS], true); }
     private function addEvent(DocumentWorkflow $workflow, string $type, ?string $comment = null): void { $workflow->addEvent((new DocumentWorkflowEvent())->setEventType($type)->setComment($comment)->setCreatedBy($this->currentUser())); }
     private function approvalEventText(string $status): string { return ['approved' => 'Документ согласован.', 'rejected' => 'Документ не согласован.', 'remarks' => 'Внесены замечания.'][$status] ?? 'Решение зафиксировано.'; }
     private function findWorkflow(int $id): ?DocumentWorkflow { $workflow = $this->entityManager->getRepository(DocumentWorkflow::class)->find($id); return $workflow instanceof DocumentWorkflow ? $workflow : null; }

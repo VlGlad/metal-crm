@@ -38,4 +38,5 @@ class DocumentApprovalStep
     public function getComment(): ?string { return $this->comment; }
     public function getDecidedAt(): ?\DateTimeImmutable { return $this->decidedAt; }
     public function decide(string $status, ?string $comment): self { $this->status = $status; $comment = trim((string) $comment); $this->comment = $comment === '' ? null : $comment; $this->decidedAt = new \DateTimeImmutable(); return $this; }
+    public function resetDecision(): self { $this->status = self::STATUS_PENDING; $this->comment = null; $this->decidedAt = null; return $this; }
 }
