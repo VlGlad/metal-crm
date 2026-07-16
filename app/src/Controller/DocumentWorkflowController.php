@@ -22,6 +22,23 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api/document-workflows')]
 final class DocumentWorkflowController extends AbstractController
 {
+    private const LEADERSHIP_ROLES = [
+        User::ROLE_ADMIN,
+        User::ROLE_GENERAL_DIRECTOR,
+        User::ROLE_PRODUCTION_HEAD,
+        User::ROLE_DEPARTMENT_HEAD,
+        User::ROLE_PTO_HEAD,
+        User::ROLE_PO_HEAD,
+        User::ROLE_OMTS_HEAD,
+        User::ROLE_SALES_HEAD,
+        User::ROLE_OTK_HEAD,
+        User::ROLE_CRO_HEAD,
+        User::ROLE_SSC_HEAD,
+        User::ROLE_CPO_HEAD,
+        User::ROLE_CZL_HEAD,
+        User::ROLE_OSMK_HEAD,
+    ];
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly UserRepository $users,
@@ -31,7 +48,11 @@ final class DocumentWorkflowController extends AbstractController
     #[Route('', methods: ['GET'])]
     public function index(): JsonResponse
     {
-        $workflows = $this->entityManager->getRepository(DocumentWorkflow::class)->findBy([], ['id' => 'DESC']);
+        $user = $this->currentUser();
+        $workflows = array_values(array_filter(
+            $this->entityManager->getRepository(DocumentWorkflow::class)->findBy([], ['id' => 'DESC']),
+            fn (DocumentWorkflow $workflow) => $this->canView($workflow, $user)
+        ));
         return $this->json([
             'workflows' => array_map(fn (DocumentWorkflow $workflow) => $this->serializeWorkflow($workflow), $workflows),
             'users' => $this->userOptions(),
@@ -61,7 +82,8 @@ final class DocumentWorkflowController extends AbstractController
     public function update(int $id, Request $request): JsonResponse
     {
         $workflow = $this->findWorkflow($id);
-        if (!$workflow) return $this->json(['message' => 'Документ не найден.'], 404);
+        if (!$workflow || !$this->canView($workflow, $this->currentUser())) return $this->json(['message' => 'Документ не найден.'], 404);
+        if (!$this->canManage($workflow, $this->currentUser())) return $this->json(['message' => 'Нет права редактировать этот документ.'], 403);
         if (!$this->canRevise($workflow)) return $this->json(['message' => 'Редактировать можно только черновик или документ с замечаниями.'], 422);
         $data = $this->decodeJson($request);
         if ($error = $this->validatePayload($data)) return $this->json(['message' => $error], 422);
@@ -90,7 +112,9 @@ final class DocumentWorkflowController extends AbstractController
     public function upload(int $id, Request $request): JsonResponse
     {
         $workflow = $this->findWorkflow($id);
-        if (!$workflow) return $this->json(['message' => 'Документ не найден.'], 404);
+        if (!$workflow || !$this->canView($workflow, $this->currentUser())) return $this->json(['message' => 'Документ не найден.'], 404);
+        if (!$this->canManage($workflow, $this->currentUser())) return $this->json(['message' => 'Нет права загружать файлы в этот документ.'], 403);
+        if (!$this->canRevise($workflow)) return $this->json(['message' => 'Загружать файлы можно только в черновик или документ с замечаниями.'], 422);
         $files = $request->files->all('files');
         if (!$files) return $this->json(['message' => 'Выберите хотя бы один файл.'], 422);
         $storedNames = [];
@@ -123,7 +147,7 @@ final class DocumentWorkflowController extends AbstractController
     {
         $workflow = $this->findWorkflow($workflowId);
         $file = $workflow ? $this->findFile($workflow, $fileId) : null;
-        if (!$workflow || !$file) return $this->json(['message' => 'Файл не найден.'], 404);
+        if (!$workflow || !$file || !$this->canView($workflow, $this->currentUser())) return $this->json(['message' => 'Файл не найден.'], 404);
         $path = $this->storage->path($file->getStoredName());
         if (!is_file($path)) return $this->json(['message' => 'Файл отсутствует в хранилище.'], 404);
         $response = new BinaryFileResponse($path);
@@ -138,7 +162,9 @@ final class DocumentWorkflowController extends AbstractController
     {
         $workflow = $this->findWorkflow($workflowId);
         $file = $workflow ? $this->findFile($workflow, $fileId) : null;
-        if (!$workflow || !$file) return $this->json(['message' => 'Файл не найден.'], 404);
+        if (!$workflow || !$file || !$this->canView($workflow, $this->currentUser())) return $this->json(['message' => 'Файл не найден.'], 404);
+        if (!$this->canManage($workflow, $this->currentUser())) return $this->json(['message' => 'Нет права удалять файлы этого документа.'], 403);
+        if (!$this->canRevise($workflow)) return $this->json(['message' => 'Удалять файлы можно только в черновике или документе с замечаниями.'], 422);
         $storedName = $file->getStoredName();
         $workflow->removeFile($file)->touch();
         $this->entityManager->remove($file);
@@ -152,7 +178,8 @@ final class DocumentWorkflowController extends AbstractController
     public function start(int $id): JsonResponse
     {
         $workflow = $this->findWorkflow($id);
-        if (!$workflow) return $this->json(['message' => 'Документ не найден.'], 404);
+        if (!$workflow || !$this->canView($workflow, $this->currentUser())) return $this->json(['message' => 'Документ не найден.'], 404);
+        if (!$this->canManage($workflow, $this->currentUser())) return $this->json(['message' => 'Нет права запускать согласование этого документа.'], 403);
         if (!$this->canRevise($workflow)) return $this->json(['message' => 'Запустить согласование можно только из черновика или после замечаний.'], 422);
         if (!$workflow->getFiles()->count()) return $this->json(['message' => 'Перед запуском загрузите хотя бы один файл.'], 422);
         if (!$workflow->getApprovalSteps()->count()) return $this->json(['message' => 'Укажите согласующих.'], 422);
@@ -174,7 +201,8 @@ final class DocumentWorkflowController extends AbstractController
     public function createAssignment(int $id, Request $request): JsonResponse
     {
         $workflow = $this->findWorkflow($id);
-        if (!$workflow) return $this->json(['message' => 'Документ не найден.'], 404);
+        if (!$workflow || !$this->canView($workflow, $this->currentUser())) return $this->json(['message' => 'Документ не найден.'], 404);
+        if (!$this->canManage($workflow, $this->currentUser())) return $this->json(['message' => 'Нет права создавать поручения по этому документу.'], 403);
         $data = $this->decodeJson($request);
         $title = trim((string) ($data['title'] ?? ''));
         $responsible = $this->users->find((int) ($data['responsibleId'] ?? 0));
@@ -198,7 +226,7 @@ final class DocumentWorkflowController extends AbstractController
     private function decide(int $id, string $status, Request $request): JsonResponse
     {
         $workflow = $this->findWorkflow($id);
-        if (!$workflow) return $this->json(['message' => 'Документ не найден.'], 404);
+        if (!$workflow || !$this->canView($workflow, $this->currentUser())) return $this->json(['message' => 'Документ не найден.'], 404);
         if ($workflow->getStatus() !== DocumentWorkflow::STATUS_IN_APPROVAL) return $this->json(['message' => 'Документ не находится на согласовании.'], 422);
         $user = $this->currentUser();
         $step = $this->findUserStep($workflow, $user);
@@ -268,11 +296,38 @@ final class DocumentWorkflowController extends AbstractController
             'createdBy' => $workflow->getCreatedBy()?->getFullName(),
             'startedAt' => $workflow->getStartedAt()?->format(DATE_ATOM), 'completedAt' => $workflow->getCompletedAt()?->format(DATE_ATOM),
             'createdAt' => $workflow->getCreatedAt()->format(DATE_ATOM), 'updatedAt' => $workflow->getUpdatedAt()->format(DATE_ATOM),
-            'permissions' => ['canStart' => $this->canRevise($workflow), 'canEdit' => $this->canRevise($workflow), 'canDecide' => $workflow->getStatus() === DocumentWorkflow::STATUS_IN_APPROVAL && (bool) $this->findUserStep($workflow, $this->currentUser())],
+            'permissions' => [
+                'canStart' => $this->canManage($workflow, $this->currentUser()) && $this->canRevise($workflow),
+                'canEdit' => $this->canManage($workflow, $this->currentUser()) && $this->canRevise($workflow),
+                'canDecide' => $workflow->getStatus() === DocumentWorkflow::STATUS_IN_APPROVAL && (bool) $this->findUserStep($workflow, $this->currentUser()),
+            ],
         ];
     }
 
     private function canRevise(DocumentWorkflow $workflow): bool { return in_array($workflow->getStatus(), [DocumentWorkflow::STATUS_DRAFT, DocumentWorkflow::STATUS_REMARKS], true); }
+    private function canView(DocumentWorkflow $workflow, ?User $user): bool
+    {
+        if (!$user) return false;
+        if ($this->hasAnyRole($user, self::LEADERSHIP_ROLES)) return true;
+        if ($workflow->getCreatedBy()?->getId() === $user->getId()) return true;
+        if ($this->findUserStep($workflow, $user)) return true;
+
+        foreach ($this->entityManager->getRepository(TaskAssignment::class)->findBy(['documentWorkflow' => $workflow]) as $assignment) {
+            if ($assignment instanceof TaskAssignment && $assignment->getResponsible()?->getId() === $user->getId()) return true;
+        }
+
+        return false;
+    }
+    private function canManage(DocumentWorkflow $workflow, ?User $user): bool
+    {
+        if (!$user) return false;
+        return $this->hasAnyRole($user, self::LEADERSHIP_ROLES) || $workflow->getCreatedBy()?->getId() === $user->getId();
+    }
+    private function hasAnyRole(User $user, array $roles): bool
+    {
+        foreach ($roles as $role) if ($user->hasRole($role)) return true;
+        return false;
+    }
     private function addEvent(DocumentWorkflow $workflow, string $type, ?string $comment = null): void { $workflow->addEvent((new DocumentWorkflowEvent())->setEventType($type)->setComment($comment)->setCreatedBy($this->currentUser())); }
     private function approvalEventText(string $status): string { return ['approved' => 'Документ согласован.', 'rejected' => 'Документ не согласован.', 'remarks' => 'Внесены замечания.'][$status] ?? 'Решение зафиксировано.'; }
     private function findWorkflow(int $id): ?DocumentWorkflow { $workflow = $this->entityManager->getRepository(DocumentWorkflow::class)->find($id); return $workflow instanceof DocumentWorkflow ? $workflow : null; }

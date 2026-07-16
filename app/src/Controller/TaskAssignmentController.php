@@ -16,6 +16,23 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api/task-assignments')]
 final class TaskAssignmentController extends AbstractController
 {
+    private const LEADERSHIP_ROLES = [
+        User::ROLE_ADMIN,
+        User::ROLE_GENERAL_DIRECTOR,
+        User::ROLE_PRODUCTION_HEAD,
+        User::ROLE_DEPARTMENT_HEAD,
+        User::ROLE_PTO_HEAD,
+        User::ROLE_PO_HEAD,
+        User::ROLE_OMTS_HEAD,
+        User::ROLE_SALES_HEAD,
+        User::ROLE_OTK_HEAD,
+        User::ROLE_CRO_HEAD,
+        User::ROLE_SSC_HEAD,
+        User::ROLE_CPO_HEAD,
+        User::ROLE_CZL_HEAD,
+        User::ROLE_OSMK_HEAD,
+    ];
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly UserRepository $users,
@@ -24,7 +41,8 @@ final class TaskAssignmentController extends AbstractController
     #[Route('', methods: ['GET'])]
     public function index(Request $request): JsonResponse
     {
-        $assignments = $this->entityManager->getRepository(TaskAssignment::class)->findBy([], ['dueDate' => 'ASC', 'id' => 'DESC']);
+        $user = $this->currentUser();
+        $assignments = $this->visibleAssignments($user);
         $month = $request->query->get('month') ?: (new \DateTimeImmutable())->format('Y-m');
         return $this->json([
             'assignments' => array_map(fn (TaskAssignment $assignment) => $this->serializeAssignment($assignment), $assignments),
@@ -38,7 +56,7 @@ final class TaskAssignmentController extends AbstractController
     public function create(Request $request): JsonResponse
     {
         $data = $this->decodeJson($request);
-        $assignmentOrError = $this->assignmentFromPayload(new TaskAssignment(), $data);
+        $assignmentOrError = $this->assignmentFromPayload(new TaskAssignment(), $data, $this->currentUser());
         if (is_string($assignmentOrError)) return $this->json(['message' => $assignmentOrError], 422);
         $assignmentOrError->setCreatedBy($this->currentUser());
         $this->addEvent($assignmentOrError, 'created', 'Поручение создано.');
@@ -51,9 +69,10 @@ final class TaskAssignmentController extends AbstractController
     public function update(int $id, Request $request): JsonResponse
     {
         $assignment = $this->findAssignment($id);
-        if (!$assignment) return $this->json(['message' => 'Поручение не найдено.'], 404);
+        if (!$assignment || !$this->canView($assignment, $this->currentUser())) return $this->json(['message' => 'Поручение не найдено.'], 404);
+        if (!$this->canManage($assignment, $this->currentUser())) return $this->json(['message' => 'Нет права редактировать это поручение.'], 403);
         if ($assignment->getStatus() === TaskAssignment::STATUS_COMPLETED) return $this->json(['message' => 'Выполненное поручение нельзя редактировать.'], 422);
-        $assignmentOrError = $this->assignmentFromPayload($assignment, $this->decodeJson($request));
+        $assignmentOrError = $this->assignmentFromPayload($assignment, $this->decodeJson($request), $this->currentUser());
         if (is_string($assignmentOrError)) return $this->json(['message' => $assignmentOrError], 422);
         $assignment->touch();
         $this->addEvent($assignment, 'updated', 'Поручение обновлено.');
@@ -65,7 +84,8 @@ final class TaskAssignmentController extends AbstractController
     public function start(int $id): JsonResponse
     {
         $assignment = $this->findAssignment($id);
-        if (!$assignment) return $this->json(['message' => 'Поручение не найдено.'], 404);
+        if (!$assignment || !$this->canView($assignment, $this->currentUser())) return $this->json(['message' => 'Поручение не найдено.'], 404);
+        if (!$this->canWorkOn($assignment, $this->currentUser())) return $this->json(['message' => 'Взять поручение в работу может ответственный или админ.'], 403);
         $assignment->setStatus(TaskAssignment::STATUS_IN_PROGRESS)->touch();
         $this->addEvent($assignment, 'started', 'Поручение взято в работу.');
         $this->entityManager->flush();
@@ -76,9 +96,9 @@ final class TaskAssignmentController extends AbstractController
     public function complete(int $id, Request $request): JsonResponse
     {
         $assignment = $this->findAssignment($id);
-        if (!$assignment) return $this->json(['message' => 'Поручение не найдено.'], 404);
+        if (!$assignment || !$this->canView($assignment, $this->currentUser())) return $this->json(['message' => 'Поручение не найдено.'], 404);
         $user = $this->currentUser();
-        if (!$this->isAdmin($user) && $assignment->getResponsible()?->getId() !== $user?->getId()) {
+        if (!$this->canWorkOn($assignment, $user)) {
             return $this->json(['message' => 'Выполнить поручение может ответственный или админ.'], 403);
         }
         $comment = $this->decodeJson($request)['comment'] ?? 'Поручение выполнено.';
@@ -92,7 +112,8 @@ final class TaskAssignmentController extends AbstractController
     public function cancel(int $id, Request $request): JsonResponse
     {
         $assignment = $this->findAssignment($id);
-        if (!$assignment) return $this->json(['message' => 'Поручение не найдено.'], 404);
+        if (!$assignment || !$this->canView($assignment, $this->currentUser())) return $this->json(['message' => 'Поручение не найдено.'], 404);
+        if (!$this->canManage($assignment, $this->currentUser())) return $this->json(['message' => 'Нет права отменять это поручение.'], 403);
         $assignment->setStatus(TaskAssignment::STATUS_CANCELLED)->touch();
         $this->addEvent($assignment, 'cancelled', $this->decodeJson($request)['comment'] ?? 'Поручение отменено.');
         $this->entityManager->flush();
@@ -103,11 +124,11 @@ final class TaskAssignmentController extends AbstractController
     public function report(Request $request): JsonResponse
     {
         $month = $request->query->get('month') ?: (new \DateTimeImmutable())->format('Y-m');
-        $assignments = $this->entityManager->getRepository(TaskAssignment::class)->findAll();
+        $assignments = $this->visibleAssignments($this->currentUser());
         return $this->json($this->buildReport($assignments, $month));
     }
 
-    private function assignmentFromPayload(TaskAssignment $assignment, array $data): TaskAssignment|string
+    private function assignmentFromPayload(TaskAssignment $assignment, array $data, ?User $user): TaskAssignment|string
     {
         $title = trim((string) ($data['title'] ?? ''));
         if ($title === '') return 'Укажите название поручения.';
@@ -118,6 +139,9 @@ final class TaskAssignmentController extends AbstractController
         $documentId = (int) ($data['documentWorkflowId'] ?? 0);
         if ($documentId > 0) {
             $document = $this->entityManager->getRepository(DocumentWorkflow::class)->find($documentId);
+            if (!$document instanceof DocumentWorkflow || !$this->canViewDocument($document, $user)) {
+                return 'Документ-источник не найден или недоступен.';
+            }
         }
         return $assignment
             ->setTitle($title)
@@ -148,7 +172,12 @@ final class TaskAssignmentController extends AbstractController
                 'id' => $event->getId(), 'eventType' => $event->getEventType(), 'comment' => $event->getComment(),
                 'createdBy' => $event->getCreatedBy()?->getFullName(), 'createdAt' => $event->getCreatedAt()->format(DATE_ATOM),
             ], $assignment->getEvents()->toArray()),
-            'permissions' => ['canComplete' => $this->isAdmin($this->currentUser()) || $assignment->getResponsible()?->getId() === $this->currentUser()?->getId()],
+            'permissions' => [
+                'canEdit' => $this->canManage($assignment, $this->currentUser()),
+                'canStart' => $this->canWorkOn($assignment, $this->currentUser()),
+                'canComplete' => $this->canWorkOn($assignment, $this->currentUser()),
+                'canCancel' => $this->canManage($assignment, $this->currentUser()),
+            ],
         ];
     }
 
@@ -185,10 +214,60 @@ final class TaskAssignmentController extends AbstractController
         return $assignment->getStatus();
     }
 
+    private function visibleAssignments(?User $user): array
+    {
+        return array_values(array_filter(
+            $this->entityManager->getRepository(TaskAssignment::class)->findBy([], ['dueDate' => 'ASC', 'id' => 'DESC']),
+            fn (TaskAssignment $assignment) => $this->canView($assignment, $user)
+        ));
+    }
+    private function canView(TaskAssignment $assignment, ?User $user): bool
+    {
+        if (!$user) return false;
+        return $this->hasAnyRole($user, self::LEADERSHIP_ROLES)
+            || $assignment->getCreatedBy()?->getId() === $user->getId()
+            || $assignment->getResponsible()?->getId() === $user->getId();
+    }
+    private function canManage(TaskAssignment $assignment, ?User $user): bool
+    {
+        if (!$user) return false;
+        return $this->hasAnyRole($user, self::LEADERSHIP_ROLES) || $assignment->getCreatedBy()?->getId() === $user->getId();
+    }
+    private function canWorkOn(TaskAssignment $assignment, ?User $user): bool
+    {
+        if (!$user) return false;
+        return $this->isAdmin($user) || $assignment->getResponsible()?->getId() === $user->getId();
+    }
+    private function canViewDocument(DocumentWorkflow $workflow, ?User $user): bool
+    {
+        if (!$user) return false;
+        if ($this->hasAnyRole($user, self::LEADERSHIP_ROLES) || $workflow->getCreatedBy()?->getId() === $user->getId()) return true;
+        foreach ($workflow->getApprovalSteps() as $step) {
+            if ($step->getApprover()?->getId() === $user->getId()) return true;
+        }
+        $assignments = $this->entityManager->getRepository(TaskAssignment::class)->findBy(['documentWorkflow' => $workflow]);
+        foreach ($assignments as $assignment) {
+            if ($assignment instanceof TaskAssignment && $assignment->getResponsible()?->getId() === $user->getId()) return true;
+        }
+        return false;
+    }
+    private function hasAnyRole(User $user, array $roles): bool
+    {
+        foreach ($roles as $role) if ($user->hasRole($role)) return true;
+        return false;
+    }
     private function addEvent(TaskAssignment $assignment, string $type, ?string $comment = null): void { $assignment->addEvent((new TaskAssignmentEvent())->setEventType($type)->setComment($comment)->setCreatedBy($this->currentUser())); }
     private function findAssignment(int $id): ?TaskAssignment { $assignment = $this->entityManager->getRepository(TaskAssignment::class)->find($id); return $assignment instanceof TaskAssignment ? $assignment : null; }
     private function userOptions(): array { return array_map(fn (User $user) => ['id' => $user->getId(), 'name' => $user->getFullName(), 'email' => $user->getEmail()], $this->users->findBy(['isActive' => true], ['fullName' => 'ASC'])); }
-    private function documentOptions(): array { return array_map(fn (DocumentWorkflow $workflow) => ['id' => $workflow->getId(), 'title' => $workflow->getTitle()], $this->entityManager->getRepository(DocumentWorkflow::class)->findBy([], ['id' => 'DESC'])); }
+    private function documentOptions(): array
+    {
+        $user = $this->currentUser();
+        $workflows = array_filter(
+            $this->entityManager->getRepository(DocumentWorkflow::class)->findBy([], ['id' => 'DESC']),
+            fn (DocumentWorkflow $workflow) => $this->canViewDocument($workflow, $user)
+        );
+        return array_map(fn (DocumentWorkflow $workflow) => ['id' => $workflow->getId(), 'title' => $workflow->getTitle()], array_values($workflows));
+    }
     private function currentUser(): ?User { $user = $this->getUser(); return $user instanceof User ? $user : null; }
     private function isAdmin(?User $user): bool { return (bool) $user?->hasRole(User::ROLE_ADMIN); }
     private function decodeJson(Request $request): array { try { $data = json_decode($request->getContent(), true, 512, JSON_THROW_ON_ERROR); } catch (\Throwable) { return []; } return is_array($data) ? $data : []; }

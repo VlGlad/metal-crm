@@ -49,24 +49,24 @@
       <section class="card editor">
         <h2>{{ form.id ? form.title : 'Новое поручение' }}</h2>
         <form class="form" @submit.prevent="saveAssignment">
-          <label>Название<input v-model="form.title" type="text" /></label>
+          <label>Название<input v-model="form.title" type="text" :disabled="form.id && !form.permissions.canEdit" /></label>
           <label>Ответственный
-            <select v-model.number="form.responsibleId"><option :value="null">Выберите</option><option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option></select>
+            <select v-model.number="form.responsibleId" :disabled="form.id && !form.permissions.canEdit"><option :value="null">Выберите</option><option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option></select>
           </label>
-          <label>Срок<input v-model="form.dueDate" type="date" /></label>
+          <label>Срок<input v-model="form.dueDate" type="date" :disabled="form.id && !form.permissions.canEdit" /></label>
           <label>Документ-источник
-            <select v-model.number="form.documentWorkflowId"><option :value="null">Без документа</option><option v-for="doc in documents" :key="doc.id" :value="doc.id">{{ doc.title }}</option></select>
+            <select v-model.number="form.documentWorkflowId" :disabled="form.id && !form.permissions.canEdit"><option :value="null">Без документа</option><option v-for="doc in documents" :key="doc.id" :value="doc.id">{{ doc.title }}</option></select>
           </label>
-          <label class="wide">Описание<textarea v-model="form.description" rows="3"></textarea></label>
-          <div class="actions"><button class="primary" :disabled="saving">{{ saving ? 'Сохранение...' : 'Сохранить поручение' }}</button></div>
+          <label class="wide">Описание<textarea v-model="form.description" rows="3" :disabled="form.id && !form.permissions.canEdit"></textarea></label>
+          <div v-if="!form.id || form.permissions.canEdit" class="actions"><button class="primary" :disabled="saving">{{ saving ? 'Сохранение...' : 'Сохранить поручение' }}</button></div>
         </form>
 
         <section v-if="form.id" class="panel">
           <div class="panel-head"><h3>Управление</h3><i :class="['status', `status-${form.status}`]">{{ statusLabel(form.status) }}</i></div>
           <div class="button-row">
-            <button v-if="form.rawStatus === 'assigned'" class="secondary" type="button" @click="startWork">В работу</button>
+            <button v-if="form.permissions.canStart && form.rawStatus === 'assigned'" class="secondary" type="button" @click="startWork">В работу</button>
             <button v-if="form.permissions.canComplete && form.rawStatus !== 'completed'" class="primary" type="button" @click="completeWork">Выполнено</button>
-            <button v-if="form.rawStatus !== 'completed' && form.rawStatus !== 'cancelled'" class="danger-button" type="button" @click="cancelWork">Отменить</button>
+            <button v-if="form.permissions.canCancel && form.rawStatus !== 'completed' && form.rawStatus !== 'cancelled'" class="danger-button" type="button" @click="cancelWork">Отменить</button>
           </div>
         </section>
 
@@ -112,7 +112,7 @@ const form = reactive(emptyAssignment())
 
 const filteredAssignments = computed(() => filter.value === 'all' ? assignments.value : assignments.value.filter(item => item.status === filter.value || item.rawStatus === filter.value))
 
-function emptyAssignment() { return { id: null, title: '', description: '', responsibleId: null, documentWorkflowId: null, dueDate: new Date().toISOString().slice(0, 10), status: 'assigned', rawStatus: 'assigned', events: [], permissions: { canComplete: false } } }
+function emptyAssignment() { return { id: null, title: '', description: '', responsibleId: null, documentWorkflowId: null, dueDate: new Date().toISOString().slice(0, 10), status: 'assigned', rawStatus: 'assigned', events: [], permissions: { canEdit: true, canStart: false, canComplete: false, canCancel: true } } }
 function normalize(item = {}) { return { ...emptyAssignment(), ...item, description: item.description ?? '', events: item.events ?? [], permissions: { ...emptyAssignment().permissions, ...(item.permissions ?? {}) } } }
 function setMessage(type, message) { error.value = type === 'error' ? message : ''; success.value = type === 'success' ? message : '' }
 function startCreating() { Object.assign(form, emptyAssignment()); historyOpen.value = false; setMessage('', '') }
