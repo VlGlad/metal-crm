@@ -28,6 +28,7 @@ security:
     access_control:
         - { path: ^/api/token, roles: PUBLIC_ACCESS }
         - { path: ^/api/logout, roles: ROLE_USER }
+        - { path: ^/api/notifications, roles: ROLE_USER }
         - { path: ^/api/document-workflows, roles: ROLE_USER }
         - { path: ^/api/task-assignments, roles: ROLE_USER }
         - { path: ^/api/procurement-requests, roles: [ROLE_PO_HEAD, ROLE_DEPARTMENT_HEAD, ROLE_ADMIN] }

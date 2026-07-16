@@ -19,10 +19,12 @@
 
       <RouterLink to="/document-workflows" class="nav-link">
         <span>Документооборот</span>
+        <span v-if="notificationCounts.documentWorkflows > 0" class="nav-badge">{{ formatBadge(notificationCounts.documentWorkflows) }}</span>
       </RouterLink>
 
       <RouterLink to="/task-assignments" class="nav-link">
         <span>Поручения</span>
+        <span v-if="notificationCounts.taskAssignments > 0" class="nav-badge">{{ formatBadge(notificationCounts.taskAssignments) }}</span>
       </RouterLink>
 
       <RouterLink v-if="canSeeProduction" to="/production" class="nav-link">
@@ -41,9 +43,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { getCurrentUser, logout } from '../services/auth.js'
+import { getNotificationCounts } from '../services/notifications.service.js'
 import { canAccessOrders } from '../constants/orderRoles.js'
 import { canAccessMonthlyPlans } from '../constants/monthlyPlanRoles.js'
 import { canAccessWorkingDocuments } from '../constants/workingDocumentRoles.js'
@@ -51,9 +54,12 @@ import { canAccessProcurementRequests } from '../constants/procurementRequestRol
 import { canAccessProductionProgress } from '../constants/productionProgressRoles.js'
 
 const router = useRouter()
+const route = useRoute()
 
 const roles = ref([])
 const loggingOut = ref(false)
+const notificationCounts = reactive({ documentWorkflows: 0, taskAssignments: 0 })
+let refreshTimer = null
 
 const canSeeProcurementRequests = computed(() => canAccessProcurementRequests(roles.value))
 const canSeeWorkingDocuments = computed(() => canAccessWorkingDocuments(roles.value))
@@ -66,9 +72,24 @@ onMounted(async () => {
   try {
     const user = await getCurrentUser()
     roles.value = Array.isArray(user?.roles) ? user.roles : []
+    await refreshNotifications()
   } catch {
     roles.value = []
   }
+
+  refreshTimer = window.setInterval(refreshNotifications, 60000)
+  window.addEventListener('focus', refreshNotifications)
+  window.addEventListener('app:notifications-refresh', refreshNotifications)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer) window.clearInterval(refreshTimer)
+  window.removeEventListener('focus', refreshNotifications)
+  window.removeEventListener('app:notifications-refresh', refreshNotifications)
+})
+
+watch(() => route.fullPath, () => {
+  refreshNotifications()
 })
 
 async function handleLogout() {
@@ -80,6 +101,21 @@ async function handleLogout() {
     loggingOut.value = false
     await router.replace({ name: 'login' })
   }
+}
+
+async function refreshNotifications() {
+  try {
+    const counts = await getNotificationCounts()
+    notificationCounts.documentWorkflows = Number(counts?.documentWorkflows ?? 0)
+    notificationCounts.taskAssignments = Number(counts?.taskAssignments ?? 0)
+  } catch {
+    notificationCounts.documentWorkflows = 0
+    notificationCounts.taskAssignments = 0
+  }
+}
+
+function formatBadge(value) {
+  return value > 99 ? '99+' : String(value)
 }
 </script>
 
@@ -112,6 +148,27 @@ async function handleLogout() {
   color: #607080;
   text-decoration: none;
   font-weight: 700;
+}
+
+.nav-link span:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.nav-badge {
+  flex: 0 0 auto;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .nav-link:hover {
