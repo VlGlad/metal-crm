@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\AuditEntityType;
 use App\Repository\AuditLogRepository;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -21,17 +22,11 @@ class AuditLog
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?User $user = null;
 
-    #[ORM\Column(length: 180, nullable: true)]
-    private ?string $userEmail = null;
-
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $userName = null;
-
     #[ORM\Column(length: 80)]
     private string $action;
 
-    #[ORM\Column(length: 120)]
-    private string $entityType;
+    #[ORM\Column(length: 120, enumType: AuditEntityType::class)]
+    private AuditEntityType $entityType;
 
     #[ORM\Column(nullable: true)]
     private ?int $entityId = null;
@@ -45,18 +40,12 @@ class AuditLog
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $context = null;
 
-    #[ORM\Column(length: 45, nullable: true)]
-    private ?string $ipAddress = null;
-
-    #[ORM\Column(type: 'text', nullable: true)]
-    private ?string $userAgent = null;
-
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
     public function __construct(
         string $action,
-        string $entityType,
+        AuditEntityType $entityType,
         ?int $entityId = null
     ) {
         $this->action = $action;
@@ -81,28 +70,6 @@ class AuditLog
         return $this;
     }
 
-    public function getUserEmail(): ?string
-    {
-        return $this->userEmail;
-    }
-
-    public function setUserEmail(?string $userEmail): self
-    {
-        $this->userEmail = $userEmail;
-        return $this;
-    }
-
-    public function getUserName(): ?string
-    {
-        return $this->userName;
-    }
-
-    public function setUserName(?string $userName): self
-    {
-        $this->userName = $userName;
-        return $this;
-    }
-
     public function getAction(): string
     {
         return $this->action;
@@ -114,12 +81,12 @@ class AuditLog
         return $this;
     }
 
-    public function getEntityType(): string
+    public function getEntityType(): AuditEntityType
     {
         return $this->entityType;
     }
 
-    public function setEntityType(string $entityType): self
+    public function setEntityType(AuditEntityType $entityType): self
     {
         $this->entityType = $entityType;
         return $this;
@@ -166,28 +133,6 @@ class AuditLog
     public function setContext(?array $context): self
     {
         $this->context = $context;
-        return $this;
-    }
-
-    public function getIpAddress(): ?string
-    {
-        return $this->ipAddress;
-    }
-
-    public function setIpAddress(?string $ipAddress): self
-    {
-        $this->ipAddress = $ipAddress;
-        return $this;
-    }
-
-    public function getUserAgent(): ?string
-    {
-        return $this->userAgent;
-    }
-
-    public function setUserAgent(?string $userAgent): self
-    {
-        $this->userAgent = $userAgent;
         return $this;
     }
 
