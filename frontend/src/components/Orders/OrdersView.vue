@@ -167,6 +167,61 @@
           <strong>{{ formatDateTime(form.issuedAt) }}</strong>
           <span v-if="form.issuedBy">— {{ form.issuedBy }}</span>
         </footer>
+
+        <section v-if="form.id" class="order-history">
+          <button
+            class="secondary"
+            type="button"
+            :aria-expanded="historyOpen"
+            aria-controls="order-history-table"
+            @click="toggleHistory"
+          >
+            {{ historyOpen ? 'Скрыть историю изменений' : 'Показать историю изменений' }}
+          </button>
+
+          <div v-if="historyOpen" id="order-history-table" class="history-content">
+            <p v-if="historyLoading && !historyRows.length" class="muted">Загрузка истории...</p>
+            <p v-if="historyError" class="history-error" role="alert">{{ historyError }}</p>
+            <p v-if="!historyLoading && !historyError && !historyRows.length" class="muted">
+              Изменений пока нет.
+            </p>
+
+            <div v-if="historyRows.length" class="history-table-wrap">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>Дата и время</th>
+                    <th>Автор</th>
+                    <th>Действие</th>
+                    <th>Поле</th>
+                    <th>Было</th>
+                    <th>Стало</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in historyRows" :key="row.key">
+                    <td>{{ formatDateTime(row.createdAt) }}</td>
+                    <td>{{ row.actor || 'Не указан' }}</td>
+                    <td>{{ auditActionLabel(row.action) }}</td>
+                    <td>{{ auditFieldLabel(row.field) }}</td>
+                    <td>{{ formatAuditValue(row.field, row.oldValue) }}</td>
+                    <td>{{ formatAuditValue(row.field, row.newValue) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <button
+              v-if="historyCursor !== null"
+              class="secondary history-more"
+              type="button"
+              :disabled="historyLoading"
+              @click="loadHistory"
+            >
+              {{ historyLoading ? 'Загрузка...' : 'Показать ещё' }}
+            </button>
+          </div>
+        </section>
       </section>
     </section>
   </main>
@@ -179,6 +234,7 @@ import {
   createOrder,
   deleteOrderFile,
   downloadOrderFile,
+  getOrderChanges,
   getOrders,
   issueOrder,
   updateOrder,
@@ -215,6 +271,12 @@ const saving = ref(false)
 const uploading = ref(false)
 const error = ref('')
 const success = ref('')
+const historyOpen = ref(false)
+const historyLoading = ref(false)
+const historyError = ref('')
+const historyRows = ref([])
+const historyCursor = ref(null)
+let historyRequestVersion = 0
 const form = reactive(emptyOrder())
 
 const canEditForm = computed(() => {
@@ -277,14 +339,73 @@ function setMessage(type, message) {
 }
 
 function startCreating() {
+  resetHistory()
   Object.assign(form, emptyOrder())
   form.permissions.canEdit = canCreate.value
   setMessage('', '')
 }
 
 function selectOrder(order) {
+  resetHistory()
   Object.assign(form, normalizeOrder(order))
   setMessage('', '')
+}
+
+function resetHistory() {
+  historyRequestVersion += 1
+  historyOpen.value = false
+  historyLoading.value = false
+  historyError.value = ''
+  historyRows.value = []
+  historyCursor.value = null
+}
+
+function toggleHistory() {
+  if (historyOpen.value) {
+    resetHistory()
+    return
+  }
+
+  resetHistory()
+  historyOpen.value = true
+  loadHistory()
+}
+
+async function loadHistory() {
+  if (!historyOpen.value || !form.id || historyLoading.value) return
+
+  const requestVersion = historyRequestVersion
+  const orderId = form.id
+  historyLoading.value = true
+  historyError.value = ''
+
+  try {
+    const data = await getOrderChanges(orderId, historyCursor.value)
+    if (requestVersion !== historyRequestVersion || form.id !== orderId) return
+
+    const changes = Array.isArray(data?.changes) ? data.changes : []
+    const rows = changes.flatMap(change => {
+      const fields = change.fields?.length ? change.fields : [{ field: null }]
+      return fields.map((field, index) => ({
+        key: `${change.id}-${index}`,
+        createdAt: change.createdAt,
+        actor: change.actor,
+        action: change.action,
+        field: field.field,
+        oldValue: field.oldValue,
+        newValue: field.newValue
+      }))
+    })
+
+    historyRows.value.push(...rows)
+    historyCursor.value = data?.nextCursor ?? null
+  } catch (exception) {
+    if (requestVersion === historyRequestVersion) {
+      historyError.value = errorMessage(exception, 'Не удалось загрузить историю изменений.')
+    }
+  } finally {
+    if (requestVersion === historyRequestVersion) historyLoading.value = false
+  }
 }
 
 async function loadOrders(selectedId = null) {
@@ -429,6 +550,26 @@ function fileCount(type) {
 
 function statusLabel(status) {
   return status === 'in_work' ? 'В работе' : 'Черновик'
+}
+
+function auditActionLabel(action) {
+  return { create: 'Создание', update: 'Изменение', delete: 'Удаление' }[action] || action
+}
+
+function auditFieldLabel(field) {
+  return {
+    number: 'Номер заказа',
+    name: 'Наименование заказа',
+    status: 'Статус',
+    issuedAt: 'Время выдачи в работу'
+  }[field] || '—'
+}
+
+function formatAuditValue(field, value) {
+  if (value === null || value === undefined || value === '') return '—'
+  if (field === 'status') return statusLabel(value)
+  if (field === 'issuedAt') return formatDateTime(value)
+  return String(value)
 }
 
 function formatDateTime(value) {
@@ -693,6 +834,51 @@ h1 {
   border-radius: 12px;
   background: #eaf8ef;
   color: #16703b;
+}
+
+.order-history {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e1e7ef;
+}
+
+.history-content {
+  margin-top: 16px;
+}
+
+.history-error {
+  color: #b42318;
+}
+
+.history-table-wrap {
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.history-table th,
+.history-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #e1e7ef;
+  vertical-align: top;
+}
+
+.history-table th {
+  background: #f4f6f8;
+  white-space: nowrap;
+}
+
+.history-table td {
+  overflow-wrap: anywhere;
+}
+
+.history-more {
+  margin-top: 14px;
 }
 
 @media (max-width: 1100px) {

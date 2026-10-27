@@ -5,6 +5,13 @@ export async function getOrders() {
   return data
 }
 
+export async function getOrderChanges(id, before = null) {
+  const { data } = await http.get(`/orders/${id}/changes`, {
+    params: before === null ? {} : { before }
+  })
+  return data
+}
+
 export async function createOrder(payload) {
   const { data } = await http.post('/orders', payload)
   return data
