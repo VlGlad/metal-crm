@@ -3,7 +3,9 @@
 namespace App\Tests\EventListener;
 
 use App\Entity\ProductionOrder;
+use App\Entity\ProductionOrderFile;
 use App\Entity\User;
+use App\Enum\DocumentType;
 use App\EventListener\AuditLogListener;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -11,6 +13,7 @@ use Doctrine\ORM\Event\OnFlushEventArgs;
 use Doctrine\ORM\Event\PostPersistEventArgs;
 use Doctrine\ORM\Event\PostRemoveEventArgs;
 use Doctrine\ORM\Event\PostUpdateEventArgs;
+use Doctrine\ORM\Event\PreRemoveEventArgs;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\UnitOfWork;
 use PHPUnit\Framework\TestCase;
@@ -100,6 +103,72 @@ final class AuditLogListenerTest extends TestCase
         $connection->expects(self::never())->method('insert');
 
         $listener->postPersist(new PostPersistEventArgs($user, $em));
+    }
+
+    public function testUploadedFileIsLinkedToItsOrder(): void
+    {
+        $order = new ProductionOrder();
+        (new \ReflectionProperty(ProductionOrder::class, 'id'))->setValue($order, 7);
+        $file = (new ProductionOrderFile())
+            ->setProductionOrder($order)
+            ->setDocumentType(DocumentType::KM_PROJECT)
+            ->setOriginalName('drawing.pdf');
+        [$listener, $em, $connection, $metadata] = $this->listenerFor($file);
+        $metadata->method('getFieldNames')->willReturn(['originalName', 'documentType']);
+        $metadata->method('getFieldValue')->willReturnCallback(
+            fn (object $entity, string $field) => match ($field) {
+                'originalName' => $entity->getOriginalName(),
+                'documentType' => $entity->getDocumentType(),
+            }
+        );
+        $metadata->method('getAssociationNames')->willReturn([]);
+        $connection->expects(self::once())->method('insert')->with(
+            'audit_logs',
+            self::callback(static fn (array $row) => $row['entity_type'] === ProductionOrderFile::class
+                && $row['parent_entity_type'] === ProductionOrder::class
+                && $row['parent_entity_id'] === 7
+                && $row['new_values']['originalName'] === 'drawing.pdf'
+                && $row['new_values']['documentType'] === DocumentType::KM_PROJECT->value),
+            self::anything()
+        );
+
+        $listener->postPersist(new PostPersistEventArgs($file, $em));
+    }
+
+    public function testDeletedFileKeepsItsOrderAfterUnlinking(): void
+    {
+        $order = new ProductionOrder();
+        (new \ReflectionProperty(ProductionOrder::class, 'id'))->setValue($order, 7);
+        $file = (new ProductionOrderFile())
+            ->setDocumentType(DocumentType::KM_PROJECT)
+            ->setOriginalName('drawing.pdf');
+        $order->addFile($file);
+        [$listener, $em, $connection, $metadata] = $this->listenerFor($file);
+        $uow = $this->createMock(UnitOfWork::class);
+        $em->method('getUnitOfWork')->willReturn($uow);
+        $uow->method('getScheduledEntityUpdates')->willReturn([]);
+        $uow->method('getScheduledEntityDeletions')->willReturn([$file]);
+        $metadata->method('getFieldNames')->willReturn(['originalName', 'documentType']);
+        $metadata->method('getFieldValue')->willReturnCallback(
+            fn (object $entity, string $field) => match ($field) {
+                'originalName' => $entity->getOriginalName(),
+                'documentType' => $entity->getDocumentType(),
+            }
+        );
+        $metadata->method('getAssociationNames')->willReturn([]);
+        $connection->expects(self::once())->method('insert')->with(
+            'audit_logs',
+            self::callback(static fn (array $row) => $row['action'] === 'delete'
+                && $row['parent_entity_type'] === ProductionOrder::class
+                && $row['parent_entity_id'] === 7
+                && $row['old_values']['originalName'] === 'drawing.pdf'),
+            self::anything()
+        );
+
+        $listener->preRemove(new PreRemoveEventArgs($file, $em));
+        $order->removeFile($file);
+        $listener->onFlush(new OnFlushEventArgs($em));
+        $listener->postRemove(new PostRemoveEventArgs($file, $em));
     }
 
     private function listenerFor(object $entity): array

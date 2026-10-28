@@ -1,5 +1,6 @@
 init: docker-down-clear docker-pull docker-build docker-up-d
 up: docker-up-d
+down: docker-down
 
 docker-up:
 	docker compose up

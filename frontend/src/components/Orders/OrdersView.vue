@@ -183,7 +183,7 @@
             <p v-if="historyLoading && !historyRows.length" class="muted">Загрузка истории...</p>
             <p v-if="historyError" class="history-error" role="alert">{{ historyError }}</p>
             <p v-if="!historyLoading && !historyError && !historyRows.length" class="muted">
-              Изменений пока нет.
+              {{ historyCursor === null ? 'Изменений пока нет.' : 'Доступные изменения не найдены. Можно загрузить более ранние записи.' }}
             </p>
 
             <div v-if="historyRows.length" class="history-table-wrap">
@@ -203,7 +203,7 @@
                     <td>{{ formatDateTime(row.createdAt) }}</td>
                     <td>{{ row.actor || 'Не указан' }}</td>
                     <td>{{ auditActionLabel(row.action) }}</td>
-                    <td>{{ auditFieldLabel(row.field) }}</td>
+                    <td>{{ auditFieldLabel(row.field, row.documentType) }}</td>
                     <td>{{ formatAuditValue(row.field, row.oldValue) }}</td>
                     <td>{{ formatAuditValue(row.field, row.newValue) }}</td>
                   </tr>
@@ -392,6 +392,7 @@ async function loadHistory() {
         actor: change.actor,
         action: change.action,
         field: field.field,
+        documentType: field.documentType,
         oldValue: field.oldValue,
         newValue: field.newValue
       }))
@@ -553,10 +554,22 @@ function statusLabel(status) {
 }
 
 function auditActionLabel(action) {
-  return { create: 'Создание', update: 'Изменение', delete: 'Удаление' }[action] || action
+  return {
+    create: 'Создание',
+    update: 'Изменение',
+    delete: 'Удаление',
+    file_upload: 'Загрузка документа',
+    file_delete: 'Удаление документа',
+    file_update: 'Изменение документа'
+  }[action] || action
 }
 
-function auditFieldLabel(field) {
+function auditFieldLabel(field, documentType) {
+  if (field === 'document') {
+    const type = documentTypes.find(item => item.value === documentType)
+    return type ? `Документ: ${type.label}` : 'Документ'
+  }
+
   return {
     number: 'Номер заказа',
     name: 'Наименование заказа',

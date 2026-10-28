@@ -266,8 +266,8 @@ final class ProductionOrderController extends AbstractController
         }
 
         $storedName = $file->getStoredName();
-        $order->removeFile($file)->touch();
         $this->entityManager->remove($file);
+        $order->removeFile($file)->touch();
         $this->entityManager->flush();
         $this->storage->delete($storedName);
 

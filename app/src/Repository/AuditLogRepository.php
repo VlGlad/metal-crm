@@ -20,9 +20,12 @@ final class AuditLogRepository extends ServiceEntityRepository
         $query = $this->createQueryBuilder('audit')
             ->leftJoin('audit.user', 'actor')
             ->addSelect('actor')
-            ->andWhere('audit.entityType = :entityType')
-            ->andWhere('audit.entityId = :orderId')
-            ->setParameter('entityType', AuditEntityType::ProductionOrder->value)
+            ->andWhere('(
+                (audit.entityType = :orderType AND audit.entityId = :orderId)
+                OR (audit.entityType = :fileType AND audit.parentEntityType = :orderType AND audit.parentEntityId = :orderId)
+            )')
+            ->setParameter('orderType', AuditEntityType::ProductionOrder->value)
+            ->setParameter('fileType', AuditEntityType::ProductionOrderFile->value)
             ->setParameter('orderId', $orderId)
             ->orderBy('audit.id', 'DESC')
             ->setMaxResults($limit);

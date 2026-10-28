@@ -9,6 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: AuditLogRepository::class)]
 #[ORM\Table(name: 'audit_logs')]
 #[ORM\Index(columns: ['entity_type', 'entity_id'], name: 'idx_audit_entity')]
+#[ORM\Index(columns: ['parent_entity_type', 'parent_entity_id'], name: 'idx_audit_parent_entity')]
 #[ORM\Index(columns: ['action'], name: 'idx_audit_action')]
 #[ORM\Index(columns: ['created_at'], name: 'idx_audit_created_at')]
 class AuditLog
@@ -30,6 +31,12 @@ class AuditLog
 
     #[ORM\Column(nullable: true)]
     private ?int $entityId = null;
+
+    #[ORM\Column(length: 120, enumType: AuditEntityType::class, nullable: true)]
+    private ?AuditEntityType $parentEntityType = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $parentEntityId = null;
 
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $oldValues = null;
@@ -100,6 +107,28 @@ class AuditLog
     public function setEntityId(?int $entityId): self
     {
         $this->entityId = $entityId;
+        return $this;
+    }
+
+    public function getParentEntityType(): ?AuditEntityType
+    {
+        return $this->parentEntityType;
+    }
+
+    public function setParentEntityType(?AuditEntityType $parentEntityType): self
+    {
+        $this->parentEntityType = $parentEntityType;
+        return $this;
+    }
+
+    public function getParentEntityId(): ?int
+    {
+        return $this->parentEntityId;
+    }
+
+    public function setParentEntityId(?int $parentEntityId): self
+    {
+        $this->parentEntityId = $parentEntityId;
         return $this;
     }
 
