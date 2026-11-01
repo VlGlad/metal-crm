@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\ProductionOrderStatus;
 use App\Repository\ProductionOrderRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -12,9 +13,6 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\UniqueConstraint(name: 'uniq_production_orders_number', columns: ['number'])]
 class ProductionOrder
 {
-    public const STATUS_DRAFT = 'draft';
-    public const STATUS_IN_WORK = 'in_work';
-
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -26,8 +24,8 @@ class ProductionOrder
     #[ORM\Column(length: 255)]
     private string $name = '';
 
-    #[ORM\Column(length: 30)]
-    private string $status = self::STATUS_DRAFT;
+    #[ORM\Column(length: 30, enumType: ProductionOrderStatus::class)]
+    private ProductionOrderStatus $status = ProductionOrderStatus::DRAFT;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -96,7 +94,7 @@ class ProductionOrder
         return $this;
     }
 
-    public function getStatus(): string
+    public function getStatus(): ProductionOrderStatus
     {
         return $this->status;
     }
@@ -162,7 +160,7 @@ class ProductionOrder
 
     public function issue(User $user): self
     {
-        $this->status = self::STATUS_IN_WORK;
+        $this->status = ProductionOrderStatus::IN_WORK;
         $this->issuedBy = $user;
         $this->issuedAt = new \DateTimeImmutable();
 

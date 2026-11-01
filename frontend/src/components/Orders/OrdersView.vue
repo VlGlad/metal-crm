@@ -38,7 +38,7 @@
         >
           <span class="order-title">
             <strong>{{ order.number || 'Без номера' }}</strong>
-            <i :class="order.status === 'in_work' ? 'status-work' : 'status-draft'">
+            <i :class="statusClass(order.status)">
               {{ statusLabel(order.status) }}
             </i>
           </span>
@@ -550,7 +550,20 @@ function fileCount(type) {
 }
 
 function statusLabel(status) {
-  return status === 'in_work' ? 'В работе' : 'Черновик'
+  return {
+    draft: 'Черновик',
+    potential: 'Потенциальный',
+    in_work: 'В работе',
+    completed: 'Выполненный'
+  }[status] ?? status
+}
+
+function statusClass(status) {
+  return {
+    potential: 'status-potential',
+    in_work: 'status-work',
+    completed: 'status-completed'
+  }[status] ?? 'status-draft'
 }
 
 function auditActionLabel(action) {
@@ -727,6 +740,16 @@ h1 {
 .status-work {
   background: #eaf8ef;
   color: #16703b;
+}
+
+.status-potential {
+  background: #fff4de;
+  color: #895500;
+}
+
+.status-completed {
+  background: #e7f0ff;
+  color: #2458a6;
 }
 
 .issue-button {

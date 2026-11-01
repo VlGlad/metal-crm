@@ -6,6 +6,7 @@ use App\Entity\ProductionOrder;
 use App\Entity\ProductionOrderFile;
 use App\Entity\User;
 use App\Enum\DocumentType;
+use App\Enum\ProductionOrderStatus;
 use App\Repository\ProductionOrderRepository;
 use App\Security\ProductionOrderAccess;
 use App\Service\ProductionOrderFileStorage;
@@ -289,7 +290,7 @@ final class ProductionOrderController extends AbstractController
             return $this->json(['message' => 'Нет права отдавать заказ в работу.'], 403);
         }
 
-        if ($order->getStatus() === ProductionOrder::STATUS_IN_WORK) {
+        if ($order->getStatus() === ProductionOrderStatus::IN_WORK) {
             return $this->json(['message' => 'Заказ уже отдан в работу.'], 422);
         }
 
@@ -338,7 +339,7 @@ final class ProductionOrderController extends AbstractController
             'id' => $order->getId(),
             'number' => $order->getNumber(),
             'name' => $order->getName(),
-            'status' => $order->getStatus(),
+            'status' => $order->getStatus()->value,
             'documents' => $documents,
             'permissions' => [
                 'canEdit' => $this->access->canEditOrder($user),
