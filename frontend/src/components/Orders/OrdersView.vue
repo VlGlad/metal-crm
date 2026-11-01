@@ -131,8 +131,16 @@
                   <span>{{ formatFileSize(file.size) }}</span>
                   <span>{{ formatDateTime(file.uploadedAt) }}</span>
 
+                  <RouterLink
+                    v-if="file.workflowId"
+                    class="workflow-link"
+                    :to="{ name: 'document-workflows', query: { id: file.workflowId } }"
+                  >
+                    Согласование: {{ approvalStatusLabel(file.approvalStatus) }}
+                  </RouterLink>
+
                   <button
-                    v-if="documentPermission(documentType.value).canUpload"
+                    v-if="documentPermission(documentType.value).canUpload && (!file.workflowId || file.approvalStatus === 'draft')"
                     class="remove-file"
                     type="button"
                     title="Удалить файл"
@@ -229,6 +237,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import BaseAlert from '../ShiftTasks/BaseAlert.vue'
 import {
   createOrder,
@@ -278,6 +287,7 @@ const historyRows = ref([])
 const historyCursor = ref(null)
 let historyRequestVersion = 0
 const form = reactive(emptyOrder())
+const route = useRoute()
 
 const canEditForm = computed(() => {
   return !form.id ? canCreate.value : Boolean(form.permissions.canEdit)
@@ -558,6 +568,17 @@ function statusLabel(status) {
   }[status] ?? status
 }
 
+function approvalStatusLabel(status) {
+  return {
+    draft: 'Черновик',
+    in_approval: 'На согласовании',
+    approved: 'Согласован',
+    remarks: 'Есть замечания',
+    rejected: 'Отклонён',
+    revoked: 'Отозван'
+  }[status] ?? status
+}
+
 function statusClass(status) {
   return {
     potential: 'status-potential',
@@ -613,7 +634,7 @@ function errorMessage(exception, fallback) {
   return exception?.response?.data?.message || exception?.message || fallback
 }
 
-onMounted(loadOrders)
+onMounted(() => loadOrders(Number(route.query.id) || null))
 </script>
 
 <style scoped>
@@ -752,6 +773,11 @@ h1 {
   color: #2458a6;
 }
 
+.workflow-link {
+  color: #2458a6;
+  font-size: 12px;
+}
+
 .issue-button {
   background: #16703b;
   color: #fff;
@@ -805,7 +831,7 @@ h1 {
 
 .file-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto 34px;
+  grid-template-columns: minmax(0, 1fr) auto auto minmax(120px, auto) 34px;
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
@@ -924,7 +950,7 @@ h1 {
   }
 
   .file-row {
-    grid-template-columns: minmax(0, 1fr) auto 34px;
+    grid-template-columns: minmax(0, 1fr) auto minmax(120px, auto) 34px;
   }
 
   .file-row span:nth-of-type(2) {
@@ -950,6 +976,10 @@ h1 {
 
   .file-row span {
     display: none;
+  }
+
+  .file-row .workflow-link {
+    grid-column: 1 / -1;
   }
 }
 </style>

@@ -28,6 +28,10 @@ class DocumentWorkflow
     #[ORM\Column(length: 100)]
     private string $documentType = 'common';
 
+    #[ORM\OneToOne(targetEntity: ProductionOrderFile::class)]
+    #[ORM\JoinColumn(name: 'production_order_file_id', nullable: true, onDelete: 'RESTRICT')]
+    private ?ProductionOrderFile $productionOrderFile = null;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
@@ -80,6 +84,8 @@ class DocumentWorkflow
     public function setTitle(string $title): self { $this->title = trim($title); return $this; }
     public function getDocumentType(): string { return $this->documentType; }
     public function setDocumentType(string $documentType): self { $this->documentType = trim($documentType) ?: 'common'; return $this; }
+    public function getProductionOrderFile(): ?ProductionOrderFile { return $this->productionOrderFile; }
+    public function setProductionOrderFile(?ProductionOrderFile $file): self { $this->productionOrderFile = $file; return $this; }
     public function getDescription(): ?string { return $this->description; }
     public function setDescription(?string $description): self { $description = trim((string) $description); $this->description = $description === '' ? null : $description; return $this; }
     public function getStatus(): string { return $this->status; }

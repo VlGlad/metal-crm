@@ -9,6 +9,7 @@ use App\Entity\DocumentWorkflowFile;
 use App\Entity\TaskAssignment;
 use App\Entity\User;
 use App\Repository\UserRepository;
+use App\Security\ProductionOrderAccess;
 use App\Service\DocumentWorkflowFileStorage;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -43,6 +44,7 @@ final class DocumentWorkflowController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly UserRepository $users,
         private readonly DocumentWorkflowFileStorage $storage,
+        private readonly ProductionOrderAccess $orderAccess,
     ) {}
 
     #[Route('', methods: ['GET'])]
@@ -84,14 +86,17 @@ final class DocumentWorkflowController extends AbstractController
         $workflow = $this->findWorkflow($id);
         if (!$workflow || !$this->canView($workflow, $this->currentUser())) return $this->json(['message' => 'Документ не найден.'], 404);
         if (!$this->canManage($workflow, $this->currentUser())) return $this->json(['message' => 'Нет права редактировать этот документ.'], 403);
-        if (!$this->canRevise($workflow)) return $this->json(['message' => 'Редактировать можно только черновик или документ с замечаниями.'], 422);
+        if (!$this->canRevise($workflow)) return $this->json(['message' => $workflow->getProductionOrderFile()
+            ? 'Для новой редакции загрузите новый файл в заказ.'
+            : 'Редактировать можно только черновик или документ с замечаниями.'], 422);
         $data = $this->decodeJson($request);
         if ($error = $this->validatePayload($data)) return $this->json(['message' => $error], 422);
+        if ($error = $this->validateOrderApprovers($workflow, $data['approverIds'])) return $this->json(['message' => $error], 422);
 
         $wasInRemarks = $workflow->getStatus() === DocumentWorkflow::STATUS_REMARKS;
         $workflow
             ->setTitle((string) $data['title'])
-            ->setDocumentType((string) ($data['documentType'] ?? 'common'))
+            ->setDocumentType($workflow->getProductionOrderFile() ? 'order' : (string) ($data['documentType'] ?? 'common'))
             ->setDescription($data['description'] ?? null)
             ->setStatus(DocumentWorkflow::STATUS_DRAFT)
             ->setStartedAt(null)
@@ -180,9 +185,19 @@ final class DocumentWorkflowController extends AbstractController
         $workflow = $this->findWorkflow($id);
         if (!$workflow || !$this->canView($workflow, $this->currentUser())) return $this->json(['message' => 'Документ не найден.'], 404);
         if (!$this->canManage($workflow, $this->currentUser())) return $this->json(['message' => 'Нет права запускать согласование этого документа.'], 403);
-        if (!$this->canRevise($workflow)) return $this->json(['message' => 'Запустить согласование можно только из черновика или после замечаний.'], 422);
-        if (!$workflow->getFiles()->count()) return $this->json(['message' => 'Перед запуском загрузите хотя бы один файл.'], 422);
+        if (!$this->canRevise($workflow)) return $this->json(['message' => $workflow->getProductionOrderFile()
+            ? 'Для новой редакции загрузите новый файл в заказ.'
+            : 'Запустить согласование можно только из черновика или после замечаний.'], 422);
+        if (!$workflow->getProductionOrderFile() && !$workflow->getFiles()->count()) return $this->json(['message' => 'Перед запуском загрузите хотя бы один файл.'], 422);
         if (!$workflow->getApprovalSteps()->count()) return $this->json(['message' => 'Укажите согласующих.'], 422);
+        if ($source = $workflow->getProductionOrderFile()) {
+            foreach ($workflow->getApprovalSteps() as $step) {
+                $approver = $step->getApprover();
+                if (!$approver || !$approver->isActive() || !$this->orderAccess->canViewDocument($approver, $source->getDocumentType())) {
+                    return $this->json(['message' => 'Один из согласующих больше не имеет доступа к файлу заказа.'], 422);
+                }
+            }
+        }
         foreach ($workflow->getApprovalSteps() as $step) { $step->resetDecision(); }
         $workflow->setStatus(DocumentWorkflow::STATUS_IN_APPROVAL)->setStartedAt(new \DateTimeImmutable())->setCompletedAt(null)->touch();
         $this->addEvent($workflow, 'started', 'Документ отправлен на согласование.');
@@ -208,6 +223,11 @@ final class DocumentWorkflowController extends AbstractController
         $responsible = $this->users->find((int) ($data['responsibleId'] ?? 0));
         if ($title === '') return $this->json(['message' => 'Укажите поручение.'], 422);
         if (!$responsible) return $this->json(['message' => 'Укажите ответственного.'], 422);
+        if ($source = $workflow->getProductionOrderFile()) {
+            if (!$this->orderAccess->canViewDocument($responsible, $source->getDocumentType())) {
+                return $this->json(['message' => 'Ответственный не имеет доступа к файлу заказа.'], 422);
+            }
+        }
         try { $dueDate = new \DateTimeImmutable((string) ($data['dueDate'] ?? '')); } catch (\Throwable) { return $this->json(['message' => 'Укажите корректный срок.'], 422); }
         $assignment = (new TaskAssignment())
             ->setTitle($title)
@@ -272,19 +292,54 @@ final class DocumentWorkflowController extends AbstractController
         }
     }
 
+    private function validateOrderApprovers(DocumentWorkflow $workflow, array $ids): ?string
+    {
+        $source = $workflow->getProductionOrderFile();
+        if (!$source) return null;
+
+        foreach ($ids as $id) {
+            $user = $this->users->find((int) $id);
+            if (!$user || !$user->isActive() || !$this->orderAccess->canViewDocument($user, $source->getDocumentType())) {
+                return 'Один из согласующих не имеет доступа к файлу заказа.';
+            }
+        }
+
+        return null;
+    }
+
     private function serializeWorkflow(DocumentWorkflow $workflow): array
     {
+        $source = $workflow->getProductionOrderFile();
+        $order = $source?->getProductionOrder();
+        $files = array_map(fn (DocumentWorkflowFile $file) => [
+            'id' => $file->getId(), 'name' => $file->getOriginalName(), 'mimeType' => $file->getMimeType(), 'size' => $file->getSize(),
+            'uploadedBy' => $file->getUploadedBy()?->getFullName(), 'uploadedAt' => $file->getUploadedAt()->format(DATE_ATOM),
+            'downloadUrl' => sprintf('/document-workflows/%d/files/%d/download', $workflow->getId(), $file->getId()),
+        ], $workflow->getFiles()->toArray());
+
+        if ($source && $order) {
+            array_unshift($files, [
+                'id' => 'order-'.$source->getId(), 'name' => $source->getOriginalName(),
+                'mimeType' => $source->getMimeType(), 'size' => $source->getSize(),
+                'uploadedBy' => $source->getUploadedBy()?->getFullName(),
+                'uploadedAt' => $source->getUploadedAt()->format(DATE_ATOM),
+                'downloadUrl' => sprintf('/orders/%d/documents/%d/download', $order->getId(), $source->getId()),
+                'source' => true,
+            ]);
+        }
+
         return [
             'id' => $workflow->getId(),
             'title' => $workflow->getTitle(),
             'documentType' => $workflow->getDocumentType(),
             'description' => $workflow->getDescription(),
             'status' => $workflow->getStatus(),
-            'files' => array_map(fn (DocumentWorkflowFile $file) => [
-                'id' => $file->getId(), 'name' => $file->getOriginalName(), 'mimeType' => $file->getMimeType(), 'size' => $file->getSize(),
-                'uploadedBy' => $file->getUploadedBy()?->getFullName(), 'uploadedAt' => $file->getUploadedAt()->format(DATE_ATOM),
-                'downloadUrl' => sprintf('/document-workflows/%d/files/%d/download', $workflow->getId(), $file->getId()),
-            ], $workflow->getFiles()->toArray()),
+            'files' => $files,
+            'order' => $order ? ['id' => $order->getId(), 'number' => $order->getNumber(), 'name' => $order->getName(), 'documentType' => $source->getDocumentType()->value] : null,
+            'eligibleApproverIds' => $source ? array_values(array_map(
+                fn (User $user) => $user->getId(),
+                array_filter($this->users->findBy(['isActive' => true]), fn (User $user) => $this->orderAccess->canViewDocument($user, $source->getDocumentType()))
+            )) : null,
             'approvals' => array_map(fn (DocumentApprovalStep $step) => [
                 'id' => $step->getId(), 'approverId' => $step->getApprover()?->getId(), 'approverName' => $step->getApprover()?->getFullName(),
                 'status' => $step->getStatus(), 'comment' => $step->getComment(), 'decidedAt' => $step->getDecidedAt()?->format(DATE_ATOM),
@@ -304,10 +359,18 @@ final class DocumentWorkflowController extends AbstractController
         ];
     }
 
-    private function canRevise(DocumentWorkflow $workflow): bool { return in_array($workflow->getStatus(), [DocumentWorkflow::STATUS_DRAFT, DocumentWorkflow::STATUS_REMARKS], true); }
+    private function canRevise(DocumentWorkflow $workflow): bool
+    {
+        return $workflow->getProductionOrderFile()
+            ? $workflow->getStatus() === DocumentWorkflow::STATUS_DRAFT
+            : in_array($workflow->getStatus(), [DocumentWorkflow::STATUS_DRAFT, DocumentWorkflow::STATUS_REMARKS], true);
+    }
     private function canView(DocumentWorkflow $workflow, ?User $user): bool
     {
         if (!$user) return false;
+        if ($source = $workflow->getProductionOrderFile()) {
+            if (!$this->orderAccess->canViewDocument($user, $source->getDocumentType())) return false;
+        }
         if ($this->hasAnyRole($user, self::LEADERSHIP_ROLES)) return true;
         if ($workflow->getCreatedBy()?->getId() === $user->getId()) return true;
         if ($this->findUserStep($workflow, $user)) return true;
@@ -321,6 +384,9 @@ final class DocumentWorkflowController extends AbstractController
     private function canManage(DocumentWorkflow $workflow, ?User $user): bool
     {
         if (!$user) return false;
+        if ($source = $workflow->getProductionOrderFile()) {
+            if (!$this->orderAccess->canViewDocument($user, $source->getDocumentType())) return false;
+        }
         return $this->hasAnyRole($user, self::LEADERSHIP_ROLES) || $workflow->getCreatedBy()?->getId() === $user->getId();
     }
     private function hasAnyRole(User $user, array $roles): bool

@@ -7,6 +7,7 @@ use App\Entity\TaskAssignment;
 use App\Entity\TaskAssignmentEvent;
 use App\Entity\User;
 use App\Repository\UserRepository;
+use App\Security\ProductionOrderAccess;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -36,6 +37,7 @@ final class TaskAssignmentController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly UserRepository $users,
+        private readonly ProductionOrderAccess $orderAccess,
     ) {}
 
     #[Route('', methods: ['GET'])]
@@ -142,6 +144,11 @@ final class TaskAssignmentController extends AbstractController
             if (!$document instanceof DocumentWorkflow || !$this->canViewDocument($document, $user)) {
                 return 'Документ-источник не найден или недоступен.';
             }
+            if ($source = $document->getProductionOrderFile()) {
+                if (!$this->orderAccess->canViewDocument($responsible, $source->getDocumentType())) {
+                    return 'Ответственный не имеет доступа к файлу заказа.';
+                }
+            }
         }
         return $assignment
             ->setTitle($title)
@@ -224,6 +231,9 @@ final class TaskAssignmentController extends AbstractController
     private function canView(TaskAssignment $assignment, ?User $user): bool
     {
         if (!$user) return false;
+        if ($source = $assignment->getDocumentWorkflow()?->getProductionOrderFile()) {
+            if (!$this->orderAccess->canViewDocument($user, $source->getDocumentType())) return false;
+        }
         return $this->hasAnyRole($user, self::LEADERSHIP_ROLES)
             || $assignment->getCreatedBy()?->getId() === $user->getId()
             || $assignment->getResponsible()?->getId() === $user->getId();
@@ -231,6 +241,9 @@ final class TaskAssignmentController extends AbstractController
     private function canManage(TaskAssignment $assignment, ?User $user): bool
     {
         if (!$user) return false;
+        if ($source = $assignment->getDocumentWorkflow()?->getProductionOrderFile()) {
+            if (!$this->orderAccess->canViewDocument($user, $source->getDocumentType())) return false;
+        }
         return $this->hasAnyRole($user, self::LEADERSHIP_ROLES) || $assignment->getCreatedBy()?->getId() === $user->getId();
     }
     private function canWorkOn(TaskAssignment $assignment, ?User $user): bool
@@ -241,6 +254,9 @@ final class TaskAssignmentController extends AbstractController
     private function canViewDocument(DocumentWorkflow $workflow, ?User $user): bool
     {
         if (!$user) return false;
+        if ($source = $workflow->getProductionOrderFile()) {
+            if (!$this->orderAccess->canViewDocument($user, $source->getDocumentType())) return false;
+        }
         if ($this->hasAnyRole($user, self::LEADERSHIP_ROLES) || $workflow->getCreatedBy()?->getId() === $user->getId()) return true;
         foreach ($workflow->getApprovalSteps() as $step) {
             if ($step->getApprover()?->getId() === $user->getId()) return true;

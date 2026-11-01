@@ -4,12 +4,14 @@ namespace App\Controller;
 
 use App\Entity\ProductionOrder;
 use App\Entity\ProductionOrderFile;
+use App\Entity\DocumentWorkflow;
 use App\Entity\User;
 use App\Enum\DocumentType;
 use App\Enum\ProductionOrderStatus;
 use App\Repository\ProductionOrderRepository;
 use App\Security\ProductionOrderAccess;
 use App\Service\ProductionOrderFileStorage;
+use App\Service\OrderDocumentWorkflowFactory;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -48,6 +50,7 @@ final class ProductionOrderController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly ProductionOrderAccess $access,
         private readonly ProductionOrderFileStorage $storage,
+        private readonly OrderDocumentWorkflowFactory $workflowFactory,
     ) {
     }
 
@@ -201,6 +204,7 @@ final class ProductionOrderController extends AbstractController
 
                 $order->addFile($file);
                 $this->entityManager->persist($file);
+                $this->workflowFactory->create($file);
             }
 
             $order->touch();
@@ -266,7 +270,26 @@ final class ProductionOrderController extends AbstractController
             return $this->json(['message' => 'Нет права удалять этот файл.'], 403);
         }
 
+        $workflow = $this->entityManager->getRepository(DocumentWorkflow::class)
+            ->findOneBy(['productionOrderFile' => $file]);
+
+        if ($workflow && $workflow->getStatus() !== DocumentWorkflow::STATUS_DRAFT) {
+            return $this->json(['message' => 'Файл с запущенным согласованием удалить нельзя.'], 422);
+        }
+
+        if ($workflow && $workflow->getFiles()->count() > 0) {
+            return $this->json(['message' => 'Сначала удалите дополнительные файлы документа в документообороте.'], 422);
+        }
+
+        if ($workflow && $this->entityManager->getRepository(\App\Entity\TaskAssignment::class)
+            ->count(['documentWorkflow' => $workflow]) > 0) {
+            return $this->json(['message' => 'Файл с поручениями удалить нельзя.'], 422);
+        }
+
         $storedName = $file->getStoredName();
+        if ($workflow) {
+            $this->entityManager->remove($workflow);
+        }
         $this->entityManager->remove($file);
         $order->removeFile($file)->touch();
         $this->entityManager->flush();
@@ -356,6 +379,8 @@ final class ProductionOrderController extends AbstractController
 
     private function serializeFile(ProductionOrder $order, ProductionOrderFile $file): array
     {
+        $workflow = $this->workflowForFile($file);
+
         return [
             'id' => $file->getId(),
             'name' => $file->getOriginalName(),
@@ -363,12 +388,20 @@ final class ProductionOrderController extends AbstractController
             'size' => $file->getSize(),
             'uploadedBy' => $file->getUploadedBy()?->getFullName(),
             'uploadedAt' => $file->getUploadedAt()->format(DATE_ATOM),
+            'workflowId' => $workflow?->getId(),
+            'approvalStatus' => $workflow?->getStatus(),
             'downloadUrl' => sprintf(
                 '/orders/%d/documents/%d/download',
                 $order->getId(),
                 $file->getId()
             ),
         ];
+    }
+
+    private function workflowForFile(ProductionOrderFile $file): ?DocumentWorkflow
+    {
+        return $this->entityManager->getRepository(DocumentWorkflow::class)
+            ->findOneBy(['productionOrderFile' => $file]);
     }
 
     private function validateOrderPayload(array $data): ?string

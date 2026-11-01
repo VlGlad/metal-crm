@@ -22,16 +22,23 @@
         <button v-for="item in workflows" :key="item.id" class="list-item" :class="{ active: item.id === form.id }" @click="selectWorkflow(item)">
           <strong>{{ item.title }}</strong>
           <span>{{ typeLabel(item.documentType) }}</span>
+          <small v-if="item.order">Заказ {{ item.order.number || `№${item.order.id}` }} · {{ item.order.name }}</small>
           <i :class="['status', `status-${item.status}`]">{{ statusLabel(item.status) }}</i>
         </button>
       </aside>
 
       <section class="card editor">
         <h2>{{ form.id ? form.title : 'Новый документ' }}</h2>
+        <RouterLink v-if="form.order" :to="{ name: 'orders', query: { id: form.order.id } }" class="order-link">
+          Заказ {{ form.order.number || `№${form.order.id}` }} · {{ form.order.name }}
+        </RouterLink>
+        <p v-if="form.order && ['remarks', 'rejected'].includes(form.status)" class="muted">
+          Для новой редакции загрузите новый файл в заказ. Решения по этому файлу останутся в истории.
+        </p>
         <form class="form" @submit.prevent="saveWorkflow">
           <label>Название<input v-model="form.title" type="text" :disabled="!canEdit" /></label>
           <label>Тип документа
-            <select v-model="form.documentType" :disabled="!canEdit">
+            <select v-model="form.documentType" :disabled="!canEdit || Boolean(form.order)">
               <option value="common">Общий документ</option>
               <option value="protocol">Протокол</option>
               <option value="order">По заказу</option>
@@ -41,7 +48,7 @@
           <label class="wide">Описание<textarea v-model="form.description" rows="3" :disabled="!canEdit"></textarea></label>
           <label class="wide">Согласующие
             <select v-model="form.approverIds" multiple :disabled="!canEdit">
-              <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }} — {{ user.email }}</option>
+              <option v-for="user in eligibleUsers" :key="user.id" :value="user.id">{{ user.name }} — {{ user.email }}</option>
             </select>
           </label>
           <div v-if="canEdit" class="actions"><button class="primary" :disabled="saving">{{ saving ? 'Сохранение...' : 'Сохранить' }}</button></div>
@@ -53,7 +60,7 @@
             <div v-for="file in form.files" :key="file.id" class="file-row">
               <button class="link" type="button" @click="download(file)">{{ file.name }}</button>
               <span>{{ formatFileSize(file.size) }}</span>
-              <button v-if="canEdit" class="danger" type="button" @click="removeFile(file)">×</button>
+              <button v-if="canEdit && !file.source" class="danger" type="button" @click="removeFile(file)">×</button>
             </div>
           </div>
           <p v-else class="muted">Файлы ещё не загружены.</p>
@@ -85,7 +92,7 @@
           <div class="assignment-form">
             <label>Поручение<input v-model="assignment.title" type="text" /></label>
             <label>Ответственный
-              <select v-model.number="assignment.responsibleId"><option :value="null">Выберите</option><option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option></select>
+              <select v-model.number="assignment.responsibleId"><option :value="null">Выберите</option><option v-for="user in eligibleUsers" :key="user.id" :value="user.id">{{ user.name }}</option></select>
             </label>
             <label>Срок<input v-model="assignment.dueDate" type="date" /></label>
             <label class="wide">Описание<textarea v-model="assignment.description" rows="2"></textarea></label>
@@ -107,10 +114,12 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import BaseAlert from '../ShiftTasks/BaseAlert.vue'
 import { createDocumentWorkflow, updateDocumentWorkflow, getDocumentWorkflows, uploadDocumentWorkflowFiles, deleteDocumentWorkflowFile, downloadDocumentWorkflowFile, startDocumentWorkflow, decideDocumentWorkflow, createWorkflowAssignment } from '../../services/DocumentWorkflows/document-workflows.service.js'
 
 const workflows = ref([])
+const route = useRoute()
 const users = ref([])
 const loading = ref(false)
 const saving = ref(false)
@@ -121,6 +130,9 @@ const selected = ref(null)
 const form = reactive(emptyWorkflow())
 const assignment = reactive(emptyAssignment())
 const canEdit = computed(() => !form.id || form.permissions.canEdit)
+const eligibleUsers = computed(() => form.eligibleApproverIds === null || form.eligibleApproverIds === undefined
+  ? users.value
+  : users.value.filter(user => form.eligibleApproverIds.includes(user.id)))
 
 function emptyWorkflow() { return { id: null, title: '', documentType: 'common', description: '', approverIds: [], files: [], approvals: [], events: [], status: 'draft', permissions: { canEdit: true, canStart: false, canDecide: false } } }
 function emptyAssignment() { return { title: '', description: '', responsibleId: null, dueDate: new Date().toISOString().slice(0, 10) } }
@@ -143,7 +155,7 @@ function eventLabel(type) { return { created: 'Создание', updated: 'Об
 function formatDateTime(value) { return value ? new Date(value).toLocaleString('ru-RU') : '—' }
 function formatFileSize(bytes) { if (bytes < 1024) return `${bytes} Б`; if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`; return `${(bytes / 1024 / 1024).toFixed(1)} МБ` }
 function errorMessage(e, fallback) { return e?.response?.data?.message || e?.message || fallback }
-onMounted(loadData)
+onMounted(() => loadData(Number(route.query.id) || null))
 </script>
 
 <style scoped>
