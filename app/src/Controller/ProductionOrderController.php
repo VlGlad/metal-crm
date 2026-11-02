@@ -12,6 +12,7 @@ use App\Repository\ProductionOrderRepository;
 use App\Security\ProductionOrderAccess;
 use App\Service\ProductionOrderFileStorage;
 use App\Service\OrderDocumentWorkflowFactory;
+use App\Service\ProductionOrderApprovalStatus;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -51,6 +52,7 @@ final class ProductionOrderController extends AbstractController
         private readonly ProductionOrderAccess $access,
         private readonly ProductionOrderFileStorage $storage,
         private readonly OrderDocumentWorkflowFactory $workflowFactory,
+        private readonly ProductionOrderApprovalStatus $approvalStatus,
     ) {
     }
 
@@ -207,7 +209,7 @@ final class ProductionOrderController extends AbstractController
                 $this->workflowFactory->create($file);
             }
 
-            $order->touch();
+            $order->syncApprovalStatus(false)->touch();
             $this->entityManager->flush();
         } catch (\Throwable $exception) {
             foreach ($storedNames as $storedName) {
@@ -292,6 +294,7 @@ final class ProductionOrderController extends AbstractController
         }
         $this->entityManager->remove($file);
         $order->removeFile($file)->touch();
+        $this->approvalStatus->recalculate($order);
         $this->entityManager->flush();
         $this->storage->delete($storedName);
 

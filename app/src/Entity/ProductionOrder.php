@@ -167,6 +167,22 @@ class ProductionOrder
         return $this->touch();
     }
 
+    public function syncApprovalStatus(bool $allDocumentsApproved): self
+    {
+        if (!in_array($this->status, [ProductionOrderStatus::DRAFT, ProductionOrderStatus::POTENTIAL], true)) {
+            return $this;
+        }
+
+        $status = $allDocumentsApproved ? ProductionOrderStatus::POTENTIAL : ProductionOrderStatus::DRAFT;
+
+        if ($this->status !== $status) {
+            $this->status = $status;
+            $this->touch();
+        }
+
+        return $this;
+    }
+
     public function touch(): self
     {
         $this->updatedAt = new \DateTimeImmutable();

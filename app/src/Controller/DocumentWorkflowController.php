@@ -11,6 +11,7 @@ use App\Entity\User;
 use App\Repository\UserRepository;
 use App\Security\ProductionOrderAccess;
 use App\Service\DocumentWorkflowFileStorage;
+use App\Service\ProductionOrderApprovalStatus;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -45,6 +46,7 @@ final class DocumentWorkflowController extends AbstractController
         private readonly UserRepository $users,
         private readonly DocumentWorkflowFileStorage $storage,
         private readonly ProductionOrderAccess $orderAccess,
+        private readonly ProductionOrderApprovalStatus $orderApprovalStatus,
     ) {}
 
     #[Route('', methods: ['GET'])]
@@ -200,6 +202,9 @@ final class DocumentWorkflowController extends AbstractController
         }
         foreach ($workflow->getApprovalSteps() as $step) { $step->resetDecision(); }
         $workflow->setStatus(DocumentWorkflow::STATUS_IN_APPROVAL)->setStartedAt(new \DateTimeImmutable())->setCompletedAt(null)->touch();
+        if ($order = $workflow->getProductionOrderFile()?->getProductionOrder()) {
+            $this->orderApprovalStatus->recalculate($order, $workflow);
+        }
         $this->addEvent($workflow, 'started', 'Документ отправлен на согласование.');
         $this->entityManager->flush();
         return $this->json($this->serializeWorkflow($workflow));
@@ -254,6 +259,9 @@ final class DocumentWorkflowController extends AbstractController
         $comment = $this->decodeJson($request)['comment'] ?? null;
         $step->decide($status, $comment);
         $this->recalculateStatus($workflow);
+        if ($order = $workflow->getProductionOrderFile()?->getProductionOrder()) {
+            $this->orderApprovalStatus->recalculate($order, $workflow);
+        }
         $this->addEvent($workflow, 'approval_'.$status, $comment ?: $this->approvalEventText($status));
         $workflow->touch();
         $this->entityManager->flush();
