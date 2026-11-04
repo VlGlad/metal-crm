@@ -183,7 +183,8 @@
         <footer v-if="form.status === 'in_work'" class="issued-info">
           Заказ отдан в работу
           <strong>{{ formatDateTime(form.issuedAt) }}</strong>
-          <span v-if="form.issuedBy">— {{ form.issuedBy }}</span>
+          Ответственный: 
+          <strong><span v-if="form.responsible">— {{ form.responsible }}</span></strong>
         </footer>
 
         <section v-if="form.id" class="order-history">
