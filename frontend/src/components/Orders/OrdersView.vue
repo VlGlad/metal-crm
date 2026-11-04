@@ -87,6 +87,16 @@
                 :disabled="!canEditForm"
               />
             </label>
+
+            <label class="responsible-field">
+              Ответственный
+              <select v-model.number="form.responsibleId" :disabled="!canEditForm">
+                <option :value="null">Не назначен</option>
+                <option v-for="user in responsibleOptions" :key="user.id" :value="user.id">
+                  {{ user.name }}
+                </option>
+              </select>
+            </label>
           </div>
 
           <div v-if="canEditForm" class="save-row">
@@ -244,6 +254,7 @@ import {
   deleteOrderFile,
   downloadOrderFile,
   getOrderChanges,
+  getOrderResponsibleCandidates,
   getOrders,
   issueOrder,
   updateOrder,
@@ -274,6 +285,7 @@ const documentTypes = [
 ]
 
 const orders = ref([])
+const responsibleCandidates = ref([])
 const canCreate = ref(false)
 const loading = ref(false)
 const saving = ref(false)
@@ -293,6 +305,16 @@ const canEditForm = computed(() => {
   return !form.id ? canCreate.value : Boolean(form.permissions.canEdit)
 })
 
+const responsibleOptions = computed(() => {
+  const options = [...responsibleCandidates.value]
+
+  if (form.responsibleId && !options.some(user => user.id === form.responsibleId)) {
+    options.push({ id: form.responsibleId, name: form.responsible || `Сотрудник #${form.responsibleId}` })
+  }
+
+  return options
+})
+
 function emptyOrder() {
   return {
     id: null,
@@ -305,6 +327,8 @@ function emptyOrder() {
       canIssue: false,
       documents: emptyDocumentPermissions()
     },
+    responsibleId: null,
+    responsible: null,
     issuedBy: null,
     issuedAt: null,
     updatedAt: null
@@ -454,7 +478,8 @@ async function saveOrder() {
 
   const payload = {
     number: form.number.trim(),
-    name: form.name.trim()
+    name: form.name.trim(),
+    responsibleId: form.responsibleId
   }
 
   try {
@@ -608,7 +633,8 @@ function auditFieldLabel(field, documentType) {
     number: 'Номер заказа',
     name: 'Наименование заказа',
     status: 'Статус',
-    issuedAt: 'Время выдачи в работу'
+    issuedAt: 'Время выдачи в работу',
+    responsible: 'Ответственный'
   }[field] || '—'
 }
 
@@ -634,7 +660,22 @@ function errorMessage(exception, fallback) {
   return exception?.response?.data?.message || exception?.message || fallback
 }
 
-onMounted(() => loadOrders(Number(route.query.id) || null))
+async function loadResponsibleCandidates() {
+  try {
+    const data = await getOrderResponsibleCandidates()
+    responsibleCandidates.value = Array.isArray(data?.users) ? data.users : []
+  } catch (exception) {
+    setMessage('error', errorMessage(exception, 'Не удалось загрузить список ответственных.'))
+  }
+}
+
+onMounted(async () => {
+  await loadOrders(Number(route.query.id) || null)
+
+  if (canCreate.value) {
+    await loadResponsibleCandidates()
+  }
+})
 </script>
 
 <style scoped>
@@ -792,6 +833,11 @@ h1 {
   display: grid;
   grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
   gap: 16px;
+}
+
+.responsible-field {
+  grid-column: 1 / -1;
+  max-width: 456px;
 }
 
 .save-row {

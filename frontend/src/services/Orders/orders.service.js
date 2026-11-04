@@ -12,6 +12,11 @@ export async function getOrderChanges(id, before = null) {
   return data
 }
 
+export async function getOrderResponsibleCandidates() {
+  const { data } = await http.get('/orders/responsible-candidates')
+  return data
+}
+
 export async function createOrder(payload) {
   const { data } = await http.post('/orders', payload)
   return data

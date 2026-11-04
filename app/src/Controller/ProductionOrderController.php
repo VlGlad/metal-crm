@@ -107,9 +107,16 @@ final class ProductionOrderController extends AbstractController
             return $this->json(['message' => $error], 422);
         }
 
+        $responsible = $this->resolveResponsible($data, null);
+
+        if (is_string($responsible)) {
+            return $this->json(['message' => $responsible], 422);
+        }
+
         $order = (new ProductionOrder())
             ->setName((string) $data['name'])
             ->setNumber($data['number'] ?? null)
+            ->setResponsible($responsible)
             ->setCreatedBy($user);
 
         $this->entityManager->persist($order);
@@ -142,9 +149,16 @@ final class ProductionOrderController extends AbstractController
             return $this->json(['message' => $error], 422);
         }
 
+        $responsible = $this->resolveResponsible($data, $order->getResponsible());
+
+        if (is_string($responsible)) {
+            return $this->json(['message' => $responsible], 422);
+        }
+
         $order
             ->setName((string) $data['name'])
             ->setNumber($data['number'] ?? null)
+            ->setResponsible($responsible)
             ->touch();
 
         if ($errorResponse = $this->flushOrder()) {
@@ -373,6 +387,8 @@ final class ProductionOrderController extends AbstractController
                 'documents' => $documentPermissions,
             ],
             'createdBy' => $order->getCreatedBy()?->getFullName(),
+            'responsibleId' => $order->getResponsible()?->getId(),
+            'responsible' => $order->getResponsible()?->getFullName(),
             'issuedBy' => $order->getIssuedBy()?->getFullName(),
             'issuedAt' => $order->getIssuedAt()?->format(DATE_ATOM),
             'createdAt' => $order->getCreatedAt()->format(DATE_ATOM),
@@ -425,6 +441,25 @@ final class ProductionOrderController extends AbstractController
         }
 
         return null;
+    }
+
+    private function resolveResponsible(array $data, ?User $current): User|string|null
+    {
+        $responsibleId = (int) ($data['responsibleId'] ?? 0);
+
+        if ($responsibleId <= 0) {
+            return null;
+        }
+
+        if ($current?->getId() === $responsibleId) {
+            return $current;
+        }
+
+        $responsible = $this->entityManager->getRepository(User::class)->find($responsibleId);
+
+        return $responsible instanceof User && $this->access->canBeResponsible($responsible)
+            ? $responsible
+            : 'Выбранный сотрудник не может быть ответственным.';
     }
 
     private function flushOrder(): ?JsonResponse

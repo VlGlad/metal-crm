@@ -8,6 +8,7 @@ use App\Enum\AuditEntityType;
 use App\Enum\DocumentType;
 use App\Repository\AuditLogRepository;
 use App\Repository\ProductionOrderRepository;
+use App\Repository\UserRepository;
 use App\Security\ProductionOrderAccess;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -20,12 +21,13 @@ final class GetOrderChangesController extends AbstractController
     private const SCAN_BATCH_SIZE = 100;
     private const MAX_SCANNED_LOGS = 500;
 
-    private const VISIBLE_FIELDS = ['number', 'name', 'status', 'issuedAt'];
+    private const VISIBLE_FIELDS = ['number', 'name', 'status', 'issuedAt', 'responsible'];
 
     public function __construct(
         private readonly ProductionOrderRepository $orders,
         private readonly AuditLogRepository $auditLogs,
         private readonly ProductionOrderAccess $access,
+        private readonly UserRepository $users,
     ) {
     }
 
@@ -72,9 +74,58 @@ final class GetOrderChangesController extends AbstractController
         } while (count($logs) === self::SCAN_BATCH_SIZE);
 
         return $this->json([
-            'changes' => $changes,
+            'changes' => $this->withResponsibleNames($changes),
             'nextCursor' => $nextCursor,
         ]);
+    }
+
+    /**
+     * В журнале ответственный хранится как {"id": N}. Подставляем ФИО
+     * одним запросом на всю страницу истории.
+     */
+    private function withResponsibleNames(array $changes): array
+    {
+        $ids = [];
+
+        foreach ($changes as $change) {
+            foreach ($change['fields'] as $field) {
+                if ($field['field'] === 'responsible') {
+                    $ids[] = $this->responsibleId($field['oldValue']);
+                    $ids[] = $this->responsibleId($field['newValue']);
+                }
+            }
+        }
+
+        $ids = array_values(array_unique(array_filter($ids)));
+        $names = [];
+
+        foreach ($ids === [] ? [] : $this->users->findBy(['id' => $ids]) as $user) {
+            $names[$user->getId()] = $user->getFullName();
+        }
+
+        foreach ($changes as $changeIndex => $change) {
+            foreach ($change['fields'] as $fieldIndex => $field) {
+                if ($field['field'] !== 'responsible') {
+                    continue;
+                }
+
+                foreach (['oldValue', 'newValue'] as $key) {
+                    $responsibleId = $this->responsibleId($field[$key]);
+                    $changes[$changeIndex]['fields'][$fieldIndex][$key] = $responsibleId !== null
+                        ? $names[$responsibleId] ?? sprintf('Сотрудник #%d', $responsibleId)
+                        : null;
+                }
+            }
+        }
+
+        return $changes;
+    }
+
+    private function responsibleId(mixed $value): ?int
+    {
+        $id = is_array($value) ? (int) ($value['id'] ?? 0) : 0;
+
+        return $id > 0 ? $id : null;
     }
 
     private function canViewChange(AuditLog $log, ?User $user): bool

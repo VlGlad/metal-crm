@@ -35,6 +35,10 @@ class ProductionOrder
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?User $issuedBy = null;
 
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $responsible = null;
+
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $issuedAt = null;
 
@@ -114,6 +118,18 @@ class ProductionOrder
     public function getIssuedBy(): ?User
     {
         return $this->issuedBy;
+    }
+
+    public function getResponsible(): ?User
+    {
+        return $this->responsible;
+    }
+
+    public function setResponsible(?User $responsible): self
+    {
+        $this->responsible = $responsible;
+
+        return $this;
     }
 
     public function getIssuedAt(): ?\DateTimeImmutable

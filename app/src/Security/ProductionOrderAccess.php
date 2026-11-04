@@ -42,6 +42,11 @@ final class ProductionOrderAccess
         return $this->canCreateOrder($user);
     }
 
+    public function canBeResponsible(?User $user): bool
+    {
+        return $user !== null && $user->isActive() && $this->canViewOrders($user);
+    }
+
     public function canIssueOrder(?User $user): bool
     {
         return $this->hasAnyRole($user, [
