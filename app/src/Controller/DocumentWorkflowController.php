@@ -12,6 +12,7 @@ use App\Repository\UserRepository;
 use App\Security\ProductionOrderAccess;
 use App\Service\DocumentWorkflowFileStorage;
 use App\Service\ProductionOrderApprovalStatus;
+use App\Service\TaskAssignmentExecutors;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -47,6 +48,7 @@ final class DocumentWorkflowController extends AbstractController
         private readonly DocumentWorkflowFileStorage $storage,
         private readonly ProductionOrderAccess $orderAccess,
         private readonly ProductionOrderApprovalStatus $orderApprovalStatus,
+        private readonly TaskAssignmentExecutors $taskExecutors,
     ) {}
 
     #[Route('', methods: ['GET'])]
@@ -234,14 +236,18 @@ final class DocumentWorkflowController extends AbstractController
             }
         }
         try { $dueDate = new \DateTimeImmutable((string) ($data['dueDate'] ?? '')); } catch (\Throwable) { return $this->json(['message' => 'Укажите корректный срок.'], 422); }
-        $assignment = (new TaskAssignment())
+        $assignment = new TaskAssignment();
+        $coExecutors = $this->taskExecutors->resolve($data, $assignment, $responsible, $workflow->getProductionOrderFile());
+        if (is_string($coExecutors)) return $this->json(['message' => $coExecutors], 422);
+        $assignment
             ->setTitle($title)
             ->setDescription($data['description'] ?? null)
             ->setResponsible($responsible)
+            ->replaceCoExecutors($coExecutors)
             ->setCreatedBy($this->currentUser())
             ->setDocumentWorkflow($workflow)
             ->setDueDate($dueDate);
-        $assignment->addEvent((new \App\Entity\TaskAssignmentEvent())->setEventType('created')->setComment('Поручение создано.')->setCreatedBy($this->currentUser()));
+        $assignment->addEvent((new \App\Entity\TaskAssignmentEvent())->setEventType('created')->setComment('Поручение создано. '.$this->taskExecutors->summary($assignment))->setCreatedBy($this->currentUser()));
         $this->entityManager->persist($assignment);
         $this->addEvent($workflow, 'assignment_created', 'Создано поручение: '.$title);
         $this->entityManager->flush();
@@ -384,7 +390,7 @@ final class DocumentWorkflowController extends AbstractController
         if ($this->findUserStep($workflow, $user)) return true;
 
         foreach ($this->entityManager->getRepository(TaskAssignment::class)->findBy(['documentWorkflow' => $workflow]) as $assignment) {
-            if ($assignment instanceof TaskAssignment && $assignment->getResponsible()?->getId() === $user->getId()) return true;
+            if ($assignment instanceof TaskAssignment && $assignment->isExecutor($user)) return true;
         }
 
         return false;
@@ -407,7 +413,7 @@ final class DocumentWorkflowController extends AbstractController
     private function findWorkflow(int $id): ?DocumentWorkflow { $workflow = $this->entityManager->getRepository(DocumentWorkflow::class)->find($id); return $workflow instanceof DocumentWorkflow ? $workflow : null; }
     private function findFile(DocumentWorkflow $workflow, int $fileId): ?DocumentWorkflowFile { foreach ($workflow->getFiles() as $file) if ($file->getId() === $fileId) return $file; return null; }
     private function findUserStep(DocumentWorkflow $workflow, ?User $user): ?DocumentApprovalStep { if (!$user) return null; foreach ($workflow->getApprovalSteps() as $step) if ($step->getApprover()?->getId() === $user->getId()) return $step; return null; }
-    private function userOptions(): array { return array_map(fn (User $user) => ['id' => $user->getId(), 'name' => $user->getFullName(), 'email' => $user->getEmail()], $this->users->findBy(['isActive' => true], ['fullName' => 'ASC'])); }
+    private function userOptions(): array { return array_map(fn (User $user) => ['id' => $user->getId(), 'name' => $user->getFullName(), 'email' => $user->getEmail(), 'position' => $user->getPosition(), 'department' => $user->getDepartment()], $this->users->findBy(['isActive' => true], ['fullName' => 'ASC'])); }
     private function currentUser(): ?User { $user = $this->getUser(); return $user instanceof User ? $user : null; }
     private function decodeJson(Request $request): array { try { $data = json_decode($request->getContent(), true, 512, JSON_THROW_ON_ERROR); } catch (\Throwable) { return []; } return is_array($data) ? $data : []; }
 }

@@ -38,8 +38,12 @@ class TaskAssignment
     #[ORM\OneToMany(mappedBy: 'assignment', targetEntity: TaskAssignmentEvent::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     #[ORM\OrderBy(['createdAt' => 'DESC', 'id' => 'DESC'])]
     private Collection $events;
+    /** @var Collection<int, TaskAssignmentCoExecutor> */
+    #[ORM\OneToMany(mappedBy: 'assignment', targetEntity: TaskAssignmentCoExecutor::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['id' => 'ASC'])]
+    private Collection $coExecutors;
 
-    public function __construct() { $now = new \DateTimeImmutable(); $this->createdAt = $now; $this->updatedAt = $now; $this->dueDate = $now; $this->events = new ArrayCollection(); }
+    public function __construct() { $now = new \DateTimeImmutable(); $this->createdAt = $now; $this->updatedAt = $now; $this->dueDate = $now; $this->events = new ArrayCollection(); $this->coExecutors = new ArrayCollection(); }
     public function getId(): ?int { return $this->id; }
     public function getTitle(): string { return $this->title; }
     public function setTitle(string $title): self { $this->title = trim($title); return $this; }
@@ -62,4 +66,18 @@ class TaskAssignment
     /** @return Collection<int, TaskAssignmentEvent> */ public function getEvents(): Collection { return $this->events; }
     public function addEvent(TaskAssignmentEvent $event): self { if (!$this->events->contains($event)) { $this->events->add($event); $event->setAssignment($this); } return $this; }
     public function touch(): self { $this->updatedAt = new \DateTimeImmutable(); return $this; }
+    /** @return Collection<int, TaskAssignmentCoExecutor> */ public function getCoExecutors(): Collection { return $this->coExecutors; }
+    public function findCoExecutor(User $user): ?TaskAssignmentCoExecutor { foreach ($this->coExecutors as $coExecutor) { if ($coExecutor->getUser()?->getId() === $user->getId()) return $coExecutor; } return null; }
+    public function isExecutor(User $user): bool { return $this->responsible?->getId() === $user->getId() || $this->findCoExecutor($user) !== null; }
+    public function replaceCoExecutors(iterable $users): self
+    {
+        $keep = [];
+        foreach ($users as $user) { if ($user instanceof User && $user->getId() !== $this->responsible?->getId()) $keep[$user->getId()] = $user; }
+        foreach ($this->coExecutors->toArray() as $coExecutor) {
+            $userId = $coExecutor->getUser()?->getId();
+            if (isset($keep[$userId])) unset($keep[$userId]); else $this->coExecutors->removeElement($coExecutor);
+        }
+        foreach ($keep as $user) $this->coExecutors->add((new TaskAssignmentCoExecutor())->setAssignment($this)->setUser($user));
+        return $this;
+    }
 }

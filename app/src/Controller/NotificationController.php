@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\DocumentApprovalStep;
 use App\Entity\DocumentWorkflow;
 use App\Entity\TaskAssignment;
+use App\Entity\TaskAssignmentCoExecutor;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -48,10 +49,13 @@ final class NotificationController extends AbstractController
 
     private function newAssignmentCount(User $user): int
     {
+        $pendingCoExecutor = 'SELECT coExecutor.id FROM '.TaskAssignmentCoExecutor::class.' coExecutor'
+            .' WHERE coExecutor.assignment = task AND coExecutor.user = :user AND coExecutor.completedAt IS NULL';
+
         return (int) $this->entityManager->createQueryBuilder()
             ->select('COUNT(task.id)')
             ->from(TaskAssignment::class, 'task')
-            ->where('task.responsible = :user')
+            ->where("task.responsible = :user OR EXISTS ($pendingCoExecutor)")
             ->andWhere('task.status = :status')
             ->setParameter('user', $user)
             ->setParameter('status', TaskAssignment::STATUS_ASSIGNED)

@@ -226,6 +226,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    public function getDisplayLabel(): string
+    {
+        $details = implode(', ', array_filter([$this->department, $this->position]));
+
+        return $details !== '' ? sprintf('%s (%s)', $this->fullName, $details) : $this->fullName;
+    }
+
     /**
      * @return list<string>
      */

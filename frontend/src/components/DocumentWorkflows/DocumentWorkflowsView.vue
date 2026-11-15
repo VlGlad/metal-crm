@@ -91,10 +91,13 @@
           <div class="panel-head"><h3>Поручение по документу</h3></div>
           <div class="assignment-form">
             <label>Поручение<input v-model="assignment.title" type="text" /></label>
-            <label>Ответственный
-              <select v-model.number="assignment.responsibleId"><option :value="null">Выберите</option><option v-for="user in eligibleUsers" :key="user.id" :value="user.id">{{ user.name }}</option></select>
+            <label>Главный исполнитель
+              <select v-model.number="assignment.responsibleId"><option :value="null">Выберите</option><optgroup v-for="group in assignmentResponsibleGroups" :key="group.department" :label="group.department"><option v-for="user in group.users" :key="user.id" :value="user.id">{{ optionLabel(user) }}</option></optgroup></select>
             </label>
             <label>Срок<input v-model="assignment.dueDate" type="date" /></label>
+            <label class="wide">Дополнительные исполнители
+              <select v-model="assignment.coExecutorIds" multiple><optgroup v-for="group in assignmentCoExecutorGroups" :key="group.department" :label="group.department"><option v-for="user in group.users" :key="user.id" :value="user.id">{{ optionLabel(user) }}</option></optgroup></select>
+            </label>
             <label class="wide">Описание<textarea v-model="assignment.description" rows="2"></textarea></label>
           </div>
           <div class="actions"><button class="primary" type="button" @click="createAssignment">Создать поручение</button></div>
@@ -116,6 +119,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import BaseAlert from '../ShiftTasks/BaseAlert.vue'
+import { groupByDepartment, optionLabel } from '../../utils/TaskAssignments/employeeGroups.js'
 import { createDocumentWorkflow, updateDocumentWorkflow, getDocumentWorkflows, uploadDocumentWorkflowFiles, deleteDocumentWorkflowFile, downloadDocumentWorkflowFile, startDocumentWorkflow, decideDocumentWorkflow, createWorkflowAssignment } from '../../services/DocumentWorkflows/document-workflows.service.js'
 
 const workflows = ref([])
@@ -133,9 +137,11 @@ const canEdit = computed(() => !form.id || form.permissions.canEdit)
 const eligibleUsers = computed(() => form.eligibleApproverIds === null || form.eligibleApproverIds === undefined
   ? users.value
   : users.value.filter(user => form.eligibleApproverIds.includes(user.id)))
+const assignmentResponsibleGroups = computed(() => groupByDepartment(eligibleUsers.value))
+const assignmentCoExecutorGroups = computed(() => groupByDepartment(eligibleUsers.value.filter(user => user.id !== assignment.responsibleId)))
 
 function emptyWorkflow() { return { id: null, title: '', documentType: 'common', description: '', approverIds: [], files: [], approvals: [], events: [], status: 'draft', permissions: { canEdit: true, canStart: false, canDecide: false } } }
-function emptyAssignment() { return { title: '', description: '', responsibleId: null, dueDate: new Date().toISOString().slice(0, 10) } }
+function emptyAssignment() { return { title: '', description: '', responsibleId: null, coExecutorIds: [], dueDate: new Date().toISOString().slice(0, 10) } }
 function normalize(item = {}) { return { ...emptyWorkflow(), ...item, description: item.description ?? '', approverIds: Array.isArray(item.approvals) ? item.approvals.map(step => step.approverId).filter(Boolean) : [], files: item.files ?? [], approvals: item.approvals ?? [], events: item.events ?? [], permissions: { ...emptyWorkflow().permissions, ...(item.permissions ?? {}) } } }
 function setMessage(type, message) { error.value = type === 'error' ? message : ''; success.value = type === 'success' ? message : '' }
 function startCreating() { Object.assign(form, emptyWorkflow()); selected.value = null; historyOpen.value = false; Object.assign(assignment, emptyAssignment()); setMessage('', '') }
@@ -147,7 +153,7 @@ async function removeFile(file) { if (!confirm(`Удалить файл «${file
 async function download(file) { try { await downloadDocumentWorkflowFile(file) } catch (e) { setMessage('error', errorMessage(e, 'Не удалось скачать файл.')) } }
 async function startApproval() { try { const updated = await startDocumentWorkflow(form.id); Object.assign(form, normalize(updated)); await loadData(updated.id); setMessage('success', 'Документ отправлен на согласование.') } catch (e) { setMessage('error', errorMessage(e, 'Не удалось запустить согласование.')) } }
 async function decide(action) { const comment = prompt('Комментарий:', '') ?? ''; try { const updated = await decideDocumentWorkflow(form.id, action, comment); Object.assign(form, normalize(updated)); await loadData(updated.id); setMessage('success', 'Решение сохранено.') } catch (e) { setMessage('error', errorMessage(e, 'Не удалось сохранить решение.')) } }
-async function createAssignment() { if (!assignment.title.trim()) return setMessage('error', 'Укажите поручение.'); if (!assignment.responsibleId) return setMessage('error', 'Выберите ответственного.'); try { await createWorkflowAssignment(form.id, { ...assignment }); Object.assign(assignment, emptyAssignment()); await loadData(form.id); setMessage('success', 'Поручение создано.') } catch (e) { setMessage('error', errorMessage(e, 'Не удалось создать поручение.')) } }
+async function createAssignment() { if (!assignment.title.trim()) return setMessage('error', 'Укажите поручение.'); if (!assignment.responsibleId) return setMessage('error', 'Выберите главного исполнителя.'); try { await createWorkflowAssignment(form.id, { ...assignment, coExecutorIds: assignment.coExecutorIds.filter(id => id !== assignment.responsibleId) }); Object.assign(assignment, emptyAssignment()); await loadData(form.id); setMessage('success', 'Поручение создано.') } catch (e) { setMessage('error', errorMessage(e, 'Не удалось создать поручение.')) } }
 function typeLabel(type) { return { common: 'Общий документ', protocol: 'Протокол', order: 'По заказу', technical: 'Технические требования' }[type] || type }
 function statusLabel(status) { return { draft: 'Черновик', in_approval: 'На согласовании', approved: 'Согласован', remarks: 'Есть замечания', rejected: 'Отклонён', revoked: 'Отозван' }[status] || status }
 function approvalLabel(status) { return { pending: 'Ожидает', approved: 'Согласовано', rejected: 'Не согласовано', remarks: 'Замечания' }[status] || status }

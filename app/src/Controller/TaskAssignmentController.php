@@ -4,10 +4,12 @@ namespace App\Controller;
 
 use App\Entity\DocumentWorkflow;
 use App\Entity\TaskAssignment;
+use App\Entity\TaskAssignmentCoExecutor;
 use App\Entity\TaskAssignmentEvent;
 use App\Entity\User;
 use App\Repository\UserRepository;
 use App\Security\ProductionOrderAccess;
+use App\Service\TaskAssignmentExecutors;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -38,6 +40,7 @@ final class TaskAssignmentController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly UserRepository $users,
         private readonly ProductionOrderAccess $orderAccess,
+        private readonly TaskAssignmentExecutors $executors,
     ) {}
 
     #[Route('', methods: ['GET'])]
@@ -61,7 +64,7 @@ final class TaskAssignmentController extends AbstractController
         $assignmentOrError = $this->assignmentFromPayload(new TaskAssignment(), $data, $this->currentUser());
         if (is_string($assignmentOrError)) return $this->json(['message' => $assignmentOrError], 422);
         $assignmentOrError->setCreatedBy($this->currentUser());
-        $this->addEvent($assignmentOrError, 'created', 'Поручение создано.');
+        $this->addEvent($assignmentOrError, 'created', 'Поручение создано. '.$this->executors->summary($assignmentOrError));
         $this->entityManager->persist($assignmentOrError);
         $this->entityManager->flush();
         return $this->json($this->serializeAssignment($assignmentOrError), 201);
@@ -74,10 +77,12 @@ final class TaskAssignmentController extends AbstractController
         if (!$assignment || !$this->canView($assignment, $this->currentUser())) return $this->json(['message' => 'Поручение не найдено.'], 404);
         if (!$this->canManage($assignment, $this->currentUser())) return $this->json(['message' => 'Нет права редактировать это поручение.'], 403);
         if ($assignment->getStatus() === TaskAssignment::STATUS_COMPLETED) return $this->json(['message' => 'Выполненное поручение нельзя редактировать.'], 422);
+        $oldResponsible = $assignment->getResponsible();
+        $oldCoExecutorNames = $this->executors->coExecutorNames($assignment);
         $assignmentOrError = $this->assignmentFromPayload($assignment, $this->decodeJson($request), $this->currentUser());
         if (is_string($assignmentOrError)) return $this->json(['message' => $assignmentOrError], 422);
         $assignment->touch();
-        $this->addEvent($assignment, 'updated', 'Поручение обновлено.');
+        $this->addEvent($assignment, 'updated', trim('Поручение обновлено. '.$this->executors->changes($oldResponsible, $oldCoExecutorNames, $assignment)));
         $this->entityManager->flush();
         return $this->json($this->serializeAssignment($assignment));
     }
@@ -150,16 +155,21 @@ final class TaskAssignmentController extends AbstractController
                 }
             }
         }
+        $coExecutors = $this->executors->resolve($data, $assignment, $responsible, $document?->getProductionOrderFile());
+        if (is_string($coExecutors)) return $coExecutors;
         return $assignment
             ->setTitle($title)
             ->setDescription($data['description'] ?? null)
             ->setResponsible($responsible)
+            ->replaceCoExecutors($coExecutors)
             ->setDocumentWorkflow($document)
             ->setDueDate($dueDate);
     }
 
     private function serializeAssignment(TaskAssignment $assignment): array
     {
+        $order = $assignment->getDocumentWorkflow()?->getProductionOrderFile()?->getProductionOrder();
+
         return [
             'id' => $assignment->getId(),
             'title' => $assignment->getTitle(),
@@ -168,22 +178,33 @@ final class TaskAssignmentController extends AbstractController
             'rawStatus' => $assignment->getStatus(),
             'responsibleId' => $assignment->getResponsible()?->getId(),
             'responsibleName' => $assignment->getResponsible()?->getFullName(),
+            'responsibleLabel' => $assignment->getResponsible()?->getDisplayLabel(),
+            'coExecutors' => array_values(array_map(fn (TaskAssignmentCoExecutor $coExecutor) => [
+                'id' => $coExecutor->getUser()?->getId(), 'name' => $coExecutor->getUser()?->getFullName(),
+                'label' => $coExecutor->getUser()?->getDisplayLabel(),
+                'position' => $coExecutor->getUser()?->getPosition(), 'department' => $coExecutor->getUser()?->getDepartment(),
+                'completedAt' => $coExecutor->getCompletedAt()?->format(DATE_ATOM),
+            ], $assignment->getCoExecutors()->toArray())),
             'createdBy' => $assignment->getCreatedBy()?->getFullName(),
+            'createdByLabel' => $assignment->getCreatedBy()?->getDisplayLabel(),
             'documentWorkflowId' => $assignment->getDocumentWorkflow()?->getId(),
             'documentWorkflowTitle' => $assignment->getDocumentWorkflow()?->getTitle(),
+            'order' => $order ? ['id' => $order->getId(), 'number' => $order->getNumber(), 'name' => $order->getName()] : null,
             'dueDate' => $assignment->getDueDate()->format('Y-m-d'),
             'completedAt' => $assignment->getCompletedAt()?->format(DATE_ATOM),
             'createdAt' => $assignment->getCreatedAt()->format(DATE_ATOM),
             'updatedAt' => $assignment->getUpdatedAt()->format(DATE_ATOM),
             'events' => array_map(fn (TaskAssignmentEvent $event) => [
                 'id' => $event->getId(), 'eventType' => $event->getEventType(), 'comment' => $event->getComment(),
-                'createdBy' => $event->getCreatedBy()?->getFullName(), 'createdAt' => $event->getCreatedAt()->format(DATE_ATOM),
+                'createdBy' => $event->getCreatedBy()?->getFullName(), 'createdByLabel' => $event->getCreatedBy()?->getDisplayLabel(),
+                'createdAt' => $event->getCreatedAt()->format(DATE_ATOM),
             ], $assignment->getEvents()->toArray()),
             'permissions' => [
                 'canEdit' => $this->canManage($assignment, $this->currentUser()),
                 'canStart' => $this->canWorkOn($assignment, $this->currentUser()),
                 'canComplete' => $this->canWorkOn($assignment, $this->currentUser()),
                 'canCancel' => $this->canManage($assignment, $this->currentUser()),
+                'canCompletePart' => (bool) ($this->currentUser() ? $assignment->findCoExecutor($this->currentUser())?->canComplete() : false),
             ],
         ];
     }
@@ -193,12 +214,13 @@ final class TaskAssignmentController extends AbstractController
         $start = new \DateTimeImmutable($month.'-01');
         $end = $start->modify('last day of this month')->setTime(23, 59, 59);
         $rows = [];
-        $total = ['total' => 0, 'completed' => 0, 'completedInTime' => 0, 'completedLate' => 0, 'notCompleted' => 0, 'overdue' => 0];
+        $total = ['total' => 0, 'completed' => 0, 'completedInTime' => 0, 'completedLate' => 0, 'notCompleted' => 0, 'overdue' => 0, 'coExecuted' => 0, 'coCompleted' => 0];
+        $emptyRow = fn (string $name, ?User $user) => ['responsible' => $name, 'label' => $user?->getDisplayLabel() ?: $name, 'total' => 0, 'completed' => 0, 'completedInTime' => 0, 'completedLate' => 0, 'notCompleted' => 0, 'overdue' => 0, 'completionRate' => 0, 'coExecuted' => 0, 'coCompleted' => 0];
         foreach ($assignments as $assignment) {
             if (!$assignment instanceof TaskAssignment) continue;
             if ($assignment->getDueDate() < $start || $assignment->getDueDate() > $end) continue;
             $name = $assignment->getResponsible()?->getFullName() ?: 'Без ответственного';
-            $rows[$name] ??= ['responsible' => $name, 'total' => 0, 'completed' => 0, 'completedInTime' => 0, 'completedLate' => 0, 'notCompleted' => 0, 'overdue' => 0, 'completionRate' => 0];
+            $rows[$name] ??= $emptyRow($name, $assignment->getResponsible());
             $status = $this->effectiveStatus($assignment);
             $rows[$name]['total']++; $total['total']++;
             if ($assignment->getStatus() === TaskAssignment::STATUS_COMPLETED) {
@@ -208,6 +230,12 @@ final class TaskAssignmentController extends AbstractController
             } else {
                 $rows[$name]['notCompleted']++; $total['notCompleted']++;
                 if ($status === 'overdue') { $rows[$name]['overdue']++; $total['overdue']++; }
+            }
+            foreach ($assignment->getCoExecutors() as $coExecutor) {
+                $coName = $coExecutor->getUser()?->getFullName() ?: 'Без ответственного';
+                $rows[$coName] ??= $emptyRow($coName, $coExecutor->getUser());
+                $rows[$coName]['coExecuted']++; $total['coExecuted']++;
+                if ($coExecutor->getCompletedAt()) { $rows[$coName]['coCompleted']++; $total['coCompleted']++; }
             }
         }
         foreach ($rows as &$row) $row['completionRate'] = $row['total'] ? round($row['completed'] / $row['total'] * 100) : 0;
@@ -236,7 +264,7 @@ final class TaskAssignmentController extends AbstractController
         }
         return $this->hasAnyRole($user, self::LEADERSHIP_ROLES)
             || $assignment->getCreatedBy()?->getId() === $user->getId()
-            || $assignment->getResponsible()?->getId() === $user->getId();
+            || $assignment->isExecutor($user);
     }
     private function canManage(TaskAssignment $assignment, ?User $user): bool
     {
@@ -263,7 +291,7 @@ final class TaskAssignmentController extends AbstractController
         }
         $assignments = $this->entityManager->getRepository(TaskAssignment::class)->findBy(['documentWorkflow' => $workflow]);
         foreach ($assignments as $assignment) {
-            if ($assignment instanceof TaskAssignment && $assignment->getResponsible()?->getId() === $user->getId()) return true;
+            if ($assignment instanceof TaskAssignment && $assignment->isExecutor($user)) return true;
         }
         return false;
     }
@@ -274,7 +302,7 @@ final class TaskAssignmentController extends AbstractController
     }
     private function addEvent(TaskAssignment $assignment, string $type, ?string $comment = null): void { $assignment->addEvent((new TaskAssignmentEvent())->setEventType($type)->setComment($comment)->setCreatedBy($this->currentUser())); }
     private function findAssignment(int $id): ?TaskAssignment { $assignment = $this->entityManager->getRepository(TaskAssignment::class)->find($id); return $assignment instanceof TaskAssignment ? $assignment : null; }
-    private function userOptions(): array { return array_map(fn (User $user) => ['id' => $user->getId(), 'name' => $user->getFullName(), 'email' => $user->getEmail()], $this->users->findBy(['isActive' => true], ['fullName' => 'ASC'])); }
+    private function userOptions(): array { return array_map(fn (User $user) => ['id' => $user->getId(), 'name' => $user->getFullName(), 'email' => $user->getEmail(), 'position' => $user->getPosition(), 'department' => $user->getDepartment()], $this->users->findBy(['isActive' => true], ['fullName' => 'ASC'])); }
     private function documentOptions(): array
     {
         $user = $this->currentUser();
